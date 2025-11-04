@@ -1,5 +1,5 @@
-![Alt text](./assets/title-white.svg#gh-dark-mode-only)
-![Alt text](./assets/title-black.svg#gh-light-mode-only) 
+![white title](./assets/title-white.svg#gh-dark-mode-only)
+![black title](./assets/title-black.svg#gh-light-mode-only)
 <!-- Fix dark/light mode support -->
 ---
 
