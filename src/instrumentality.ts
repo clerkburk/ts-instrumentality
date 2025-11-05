@@ -216,6 +216,15 @@ export async function retry<T, Args extends any[]>(_fn: (..._args: Args) => Prom
 
 
 
+export const REGISTRY = new FinalizationRegistry((delFn: () => void) => {
+  /*
+    Attempt to proivde somewhat of a RAII-experience.
+  */
+  delFn()
+})
+
+
+
 // Node specific (comment out if no node access)
 export const IS_WINDOWS = process.platform === "win32" as const
 

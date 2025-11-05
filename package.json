@@ -1,6 +1,6 @@
 {
   "name": "ts-instrumentality",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "https://github.com/ZiggityZaza/ts-instrumentality#readme",
   "bugs": {
     "url": "https://github.com/ZiggityZaza/ts-instrumentality/issues"
@@ -9,7 +9,6 @@
     "type": "git",
     "url": "git+https://github.com/ZiggityZaza/ts-instrumentality.git"
   },
-
   "main": "./dist/instrumentality.js",
   "types": "./dist/instrumentality.d.ts",
   "files": ["dist"],
