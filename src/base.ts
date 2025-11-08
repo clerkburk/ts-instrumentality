@@ -2,11 +2,7 @@ export let LAST_ERROR: Error | null = null // Only works for throws with this li
 
 
 
-// Vanilla functions (regardless of Node or Web)
-export function find_self_in_arr<T>(_array: Array<T>, _lookFor: T): T | undefined {
-  return _array.find(item => item === _lookFor)
-}
-export function find_val_in_map<K, V>(_map: Map<K, V[]>, _value: V): K | undefined {
+export function key_by_val<K, V>(_map: Map<K, V[]>, _value: V): K | undefined {
   for (const [key, values] of _map.entries())
     if (values.includes(_value))
       return key
@@ -16,12 +12,12 @@ export function find_val_in_map<K, V>(_map: Map<K, V[]>, _value: V): K | undefin
 
 
 export function to_str(_x: unknown): string {
-  if (typeof _x === "string")
+  if (typeof _x === 'string')
     return _x
   if (_x === null || _x === undefined)
     return String(_x)
   try {
-    return typeof (_x as any).toString === "function" ? (_x as any).toString() : JSON.stringify(_x)
+    return typeof (_x as any).toString === 'function' ? to_str((_x as any).toString()) : JSON.stringify(_x)
   } catch {
     try { return JSON.stringify(_x) }
     catch { return String(_x) }
@@ -40,9 +36,16 @@ export abstract class AnyErr extends Error {
 
 
 
+export class RangeErr extends AnyErr {}
 export function range(_from: number, _to?: number, _step: number = 1): Array<number> {
   if (_to === undefined)
     [_from, _to] = [0, _from] // If only one way
+  if (_step <= 0)
+    throw new RangeErr("_step must be > 0 (swap _from and _to if you want reverse counting)")
+  if (Number.isNaN(_from) || Number.isNaN(_to) || Number.isNaN(_step))
+    throw new RangeErr("can't handle NaN as value")
+  if (!Number.isFinite(_from) || !Number.isFinite(_to) || !Number.isFinite(_step))
+    throw new RangeErr("can't handle infite as value")
   let result: Array<number> = []
   if (_from < _to)
     for (let i = _from; i < _to; i += _step)
@@ -55,18 +58,20 @@ export function range(_from: number, _to?: number, _step: number = 1): Array<num
 
 
 
-export function or_err<T>(_x: T | undefined | null, _ErrCtor: new (...args: any[]) => Error = Error, _msg: string = "or_err assert failed"): T {
+export class OrErrErr extends AnyErr {}
+export function or_err<T>(_x: T | undefined | null, _msg = "value existence assertion failed"): T {
+  /*
+    Type assertion as safety-net before accessing
+  */
   if (_x === undefined || _x === null)
-    throw new _ErrCtor(_msg)
+    throw new OrErrErr(_msg)
   return _x
 }
 
 
 
 export class TrimErr extends AnyErr {}
-
-export const TRIM_WITH = "..." as const
-
+export const TRIM_WITH = '...' as const
 export function trim_begin(_str: string, _maxLen: number): string {
   /*
     Shorten string from the beginning if it exceeds `_maxLen`
@@ -77,7 +82,6 @@ export function trim_begin(_str: string, _maxLen: number): string {
     return _str
   return TRIM_WITH + _str.slice(_str.length - (_maxLen - TRIM_WITH.length))
 }
-
 export function trim_end(_str: string, _maxLen: number): string {
   /*
     Shorten string from the end if it exceeds `maxLen`
@@ -96,7 +100,7 @@ export function time_to_str(): string {
     Returns HH:MM:SS-DD:MM:YYYY
   */
   const n = new Date()
-  const p = (n: number) => n.toString().padStart(2, "0")
+  const p = (n: number) => n.toString().padStart(2, '0')
   return `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}-${p(n.getDate())}:${p(n.getMonth() + 1)}:${n.getFullYear()}`
 }
 
@@ -105,12 +109,12 @@ export function time_to_str(): string {
 export async function sleep(_ms: number): Promise<void> {
   if (_ms <= 0)
     return
-  return new Promise(resolve => setTimeout(resolve, _ms));
+  return new Promise(resolve => setTimeout(resolve, _ms))
 }
 
 
 
-export const enum ANSII_ESCAPE {
+export const enum ANSI_ESC {
   BOLD = "\u001b[1m",
   ITALIC = "\u001b[3m",
   UNDERLINE = "\u001b[4m",
@@ -127,17 +131,23 @@ export const enum ANSII_ESCAPE {
 }
 export class Out {
   silence: boolean = false
-  suffix: string = ""
   prefix: string
-  constructor(_prefix: string, _color?: ANSII_ESCAPE) {
-    this.prefix = _prefix
-    if (_color)
-      this.prefix = _color + this.prefix + ANSII_ESCAPE.RESET
+  suffix: string
+  readonly printer: (... args: any[]) => void
+
+  constructor(_prefix?: string, _suffix?: string, _color?: ANSI_ESC, _printer?: (... args: any[]) => void) {
+    this.printer = _printer ?? console.log
+    this.prefix = _prefix ?? ""
+    this.suffix = _suffix ?? ""
+    if (_color) {
+      this.prefix = _color + this.prefix + ANSI_ESC.RESET
+      this.suffix = _color + this.suffix + ANSI_ESC.RESET
+    }
   }
 
-  print(..._args: any[]) {
+  print(..._args: unknown[]) {
     if (!this.silence)
-      console.log(`[${time_to_str()}]${this.prefix}${this.suffix}`, ..._args)
+      this.printer(`[${time_to_str()}]${this.prefix}${this.suffix}`, ..._args)
   }
 }
 
@@ -146,7 +156,7 @@ export class Out {
 export function remove_all_from_arr<T>(_arr: Array<T>, _lookFor: T): void {
   let i = 0
   while (i < _arr.length)
-    if (_arr[i] === _lookFor)
+    if (_arr.at(i) === _lookFor)
       _arr.splice(i, 1)
     else
       i++
@@ -154,21 +164,10 @@ export function remove_all_from_arr<T>(_arr: Array<T>, _lookFor: T): void {
 
 
 
-export function inline_try<T>(_func: Function, ..._args: unknown[]): T | null {
+export const TRY_ERROR = Symbol('TryError')
+export function try_func<T, Args extends unknown[]>(_func: (...args: Args) => T, ..._args: Args): T | typeof TRY_ERROR {
   try { return _func(..._args) }
-  catch (e) { return null }
-}
-
-
-
-export function entries<T extends Record<string, any>>(_obj: T): [keyof T, T[keyof T]][] {
-  return Object.entries(_obj) as [keyof T, T[keyof T]][]
-}
-
-
-
-export function rm_fileprotocol_from_src(_rawPath: string): string {
-  return _rawPath.replace(/^file:\/\/\//, "");
+  catch (e) { return TRY_ERROR }
 }
 
 
@@ -182,6 +181,10 @@ export function ass(_conditionResult: boolean): void { // ass-ert
 
 
 export function freezer<T extends object>(obj: T): T {
+  /*
+    Make an object immutable. If the object has nested
+    objects, make them immutable too.
+  */
   Object.freeze(obj)
   Object.getOwnPropertyNames(obj).forEach(prop => {
     const value = (obj as any)[prop]
@@ -204,14 +207,49 @@ export async function retry<T, Args extends any[]>(_fn: (..._args: Args) => Prom
       await sleep(_delayMs)
     }
   }
-  throw new RetryErr("Unreachable")
+  throw new RetryErr(`Invalid max attempts value ${_maxAttempts}`)
 }
 
 
 
-export const REGISTRY = new FinalizationRegistry((delFn: () => void) => {
+export class NetErr extends AnyErr {
+  constructor(_msg: string, _status?: number, _statusText?: string, _otherInfo?: string) {
+    super(`NetError: ${_msg}${_status ? ` (${_status})` : ''}${_statusText ? ` (${_statusText})` : ''}`)
+  }
+}
+
+
+export async function get<T>(_url: string, _args?: Record<string, string>, _init: RequestInit = { method: 'GET' }): Promise<T> {
   /*
-    Attempt to proivde somewhat of a RAII-experience.
+    Grab something out of the internet and parse it
+    as JSON (or throw)
   */
-  delFn()
-})
+  const response = await fetch(`${_url}${_args ? `?${new URLSearchParams(_args)}` : ''}`, _init)
+  if (!response.ok)
+    throw new NetErr(`Failed to fetch ${_url}`, response.status, response.statusText)
+  return (await response.json()) as T
+}
+
+
+
+export async function post<T>(_url: string, _body: Record<string, any>, _init: RequestInit = { method: 'POST', headers: {"Content-Type": "application/json"} }): Promise<T> {
+  /*
+    Post something to the internet and parse it
+  */
+  const body = JSON.stringify(_body)
+  const response = await fetch(_url, {
+    ..._init,
+    body,
+    method: _init.method ?? 'POST'
+  })
+  if (!response.ok)
+    throw new NetErr(`Failed to post ${_url} with init request ${_init}`, response.status, response.statusText)
+  return (await response.json()) as T
+}
+
+
+
+export function scramble_name(_length: number = 64 /*~59^n possible combinations*/ ): string {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" as const
+  return Array.from({ length: _length }, () => chars[Math.floor(Math.random() * 62)]).join("")
+}

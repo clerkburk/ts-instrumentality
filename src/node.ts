@@ -1,6 +1,7 @@
-import { AnyErr } from "./base.js"
+import { AnyErr, scramble_name } from "./base.js"
 import * as fs from "node:fs"
 import * as path from "node:path"
+import * as os from "node:os"
 import { spawnSync } from "node:child_process"
 
 
@@ -292,5 +293,56 @@ export class File extends Road {
   }
   size_in_bytes(): number {
     return fs.statSync(this.isAt).size
+  }
+}
+
+
+
+export class TempFile extends File {
+  /*
+    Create a temporary file with a random name in the system's
+    temporary directory.
+  */
+  constructor() {
+    let tempName: string = `TempFile_${scramble_name()}.tmp`
+    while (fs.existsSync(path.join(os.tmpdir(), tempName)) && to_RoadT(path.join(os.tmpdir(), tempName)) !== RoadT.FILE) // Loops over forever until open name is found
+      tempName = `TempFile_${scramble_name()}.tmp`
+    super(path.join(os.tmpdir(), tempName), true)
+  }
+
+  cleanup(): void {
+    if (this.exists())
+      fs.unlinkSync(this.isAt)
+  }
+
+  [Symbol.dispose](): void {
+    this.cleanup()
+  }
+}
+
+
+
+export class TempFolder extends Folder {
+  /*
+    Create a temporary folder with a random name in the system's
+    temporary directory.
+    Note:
+      Destructor also takes all entries in the folder
+      into account and deletes them.
+  */
+  constructor() {
+    let tempName: string = `TempFolder_${scramble_name()}`
+    while (fs.existsSync(path.join(os.tmpdir(), tempName)) && to_RoadT(path.join(os.tmpdir(), tempName)) !== RoadT.FOLDER)
+      tempName = `TempFolder_${scramble_name()}`
+    super(path.join(os.tmpdir(), tempName), true)
+  }
+
+  cleanup(): void {
+    if (this.exists())
+      fs.rmSync(this.isAt, { recursive: true, force: true })
+  }
+
+  [Symbol.dispose](): void {
+    this.cleanup()
   }
 }
