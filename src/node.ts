@@ -282,39 +282,39 @@ export class Folder extends Road {
   }
 
   // Listing
-  list_sync<T extends Road>(ctor?: new (...args: unknown[]) => T): Road[] {
+  list_sync<T extends Road>(ctor?: new (...args: unknown[]) => T): T[] {
     const entries = fs.readdirSync(this.isAt)
     const allRoads = entries.map(entry => road_factory_sync(ph.join(this.isAt, entry)))
     if (ctor)
       return allRoads.filter(road => road instanceof ctor) as T[]
-    return allRoads
+    return allRoads as T[]
   }
-  async list<T extends Road>(ctor?: new (...args: unknown[]) => T): Promise<Road[]> {
+  async list<T extends Road>(ctor?: new (...args: unknown[]) => T): Promise<T[]> {
     const entries = await fp.readdir(this.isAt)
     const allRoadsPromises = entries.map(async entry => await road_factory(ph.join(this.isAt, entry)))
     const allRoads = await Promise.all(allRoadsPromises)
     if (ctor)
       return allRoads.filter(road => road instanceof ctor) as T[]
-    return allRoads
+    return allRoads as T[]
   }
-  find_sync(_name: string, _ctor?: new (...args: unknown[]) => Road): Road | null {
+  find_sync<T extends Road>(_name: string, _ctor?: new (...args: unknown[]) => T): T | null {
     try {
       fs.accessSync(ph.join(this.isAt, _name), fs.constants.F_OK)
       const road = road_factory_sync(ph.join(this.isAt, _name))
       if (_ctor && !(road instanceof _ctor))
         return null
-      return road
+      return road as T
     } catch {
       return null
     }
   }
-  async find(_name: string, _ctor?: new (...args: unknown[]) => Road): Promise<Road | null> {
+  async find<T extends Road>(_name: string, _ctor?: new (...args: unknown[]) => T): Promise<T | null> {
     try {
       await fp.access(ph.join(this.isAt, _name), fs.constants.F_OK)
       const road = await road_factory(ph.join(this.isAt, _name))
       if (_ctor && !(road instanceof _ctor))
         return null
-      return road
+      return road as T
     } catch {
       return null
     }
