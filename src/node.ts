@@ -282,45 +282,43 @@ export class Folder extends Road {
   }
 
   // Listing
-  list_sync(): Road[] {
-    return fs.readdirSync(this.isAt).map(entry => road_factory_sync(ph.join(this.isAt, entry)))
+  list_sync<T extends Road>(..._typeCtors: (new(...args: any[]) => T)[]): Road[] | T[] {
+    const entries = fs.readdirSync(this.isAt).map(entry => road_factory_sync(ph.join(this.isAt, entry)))
+    if (_typeCtors.length === 0)
+      return entries
+    return entries.filter(entry => _typeCtors.some(ctor => entry instanceof ctor)) as T[]
   }
-  list_type_sync<T extends Road>(..._typeCtors: (new(...args: any[]) => T)[]): T[] {
-    return this.list_sync().filter(entry => _typeCtors.some(ctor => entry instanceof ctor)) as T[]
+  async list<T extends Road>(..._typeCtors: (new(...args: any[]) => T)[]): Promise<Road[] | T[]> {
+    const entries = await Promise.all((await fp.readdir(this.isAt)).map(entry => road_factory(ph.join(this.isAt, entry))))
+    if (_typeCtors.length === 0)
+      return entries
+    return entries.filter(entry => _typeCtors.some(ctor => entry instanceof ctor)) as T[]
   }
-  async list(): Promise<Road[]> {
-    return await Promise.all((await fp.readdir(this.isAt)).map(entry => road_factory(ph.join(this.isAt, entry))))
-  }
-  async list_type<T extends Road>(..._typeCtors: (new(...args: any[]) => T)[]): Promise<T[]> {
-    return (await this.list()).filter(entry => _typeCtors.some(ctor => entry instanceof ctor)) as T[]
-  }
-  find_sync(_name: string): Road | null {
+  find_sync<T extends Road>(_name: string, ..._typeCtors: (new(...args: any[]) => T)[]): Road | T | null {
     try {
       fs.accessSync(ph.join(this.isAt, _name), fs.constants.F_OK)
-      return road_factory_sync(ph.join(this.isAt, _name))
+      const found = road_factory_sync(ph.join(this.isAt, _name))
+      if (_typeCtors.length === 0)
+        return found
+      if (_typeCtors.some(ctor => found instanceof ctor))
+        return found as T
+      return null
     } catch {
       return null
     }
   }
-  find_type_sync<T extends Road>(_name: string, ..._typeCtors: (new(...args: any[]) => T)[]): T | null {
-    const found = this.find_sync(_name)
-    if (found && _typeCtors.some(ctor => found instanceof ctor))
-      return found as T
-    return null
-  }
-  async find(_name: string): Promise<Road | null> {
+  async find<T extends Road>(_name: string, ..._typeCtors: (new(...args: any[]) => T)[]): Promise<Road | T | null> {
     try {
       await fp.access(ph.join(this.isAt, _name), fs.constants.F_OK)
-      return await road_factory(ph.join(this.isAt, _name))
+      const found = await road_factory(ph.join(this.isAt, _name))
+      if (_typeCtors.length === 0)
+        return found
+      if (_typeCtors.some(ctor => found instanceof ctor))
+        return found as T
+      return null
     } catch {
       return null
     }
-  }
-  async find_type<T extends Road>(_name: string, ..._typeCtors: (new(...args: any[]) => T)[]): Promise<T | null> {
-    const found = await this.find(_name)
-    if (found && _typeCtors.some(ctor => found instanceof ctor))
-      return found as T
-    return null
   }
 
   // Implement abstract methods
