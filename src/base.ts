@@ -72,7 +72,21 @@ export async function retry<T, Args extends any[]>(_fn: (..._args: Args) => Prom
 
 
 
-export function sleep_sync(_ms: number): void {
+export function busy_sleep_sync(_ms: number): void {
   const end = Date.now() + _ms
   while (Date.now() < end) {} // Busy-wait loop
+}
+export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      _abortSignal?.removeEventListener("abort", onAbort)
+      resolve()
+    }, _ms)
+
+    function onAbort() {
+      clearTimeout(timeout)
+      reject(new Error("Sleep aborted"))
+    }
+    _abortSignal?.addEventListener("abort", onAbort, { once: true })
+  })
 }

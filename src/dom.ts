@@ -1,6 +1,3 @@
-
-
-
 export async function once_ready(): Promise<void> {
   return new Promise((resolve) => {
   if (document.readyState === 'loading')
@@ -9,7 +6,6 @@ export async function once_ready(): Promise<void> {
     resolve()
   })
 }
-
 
 
 
@@ -31,7 +27,7 @@ export function by_class<T extends HTMLElement>(_className: string, _elementType
 
   elements.forEach((element, index) => {
     if (!(element instanceof typeCtor))
-    throw new Error(`Type missmatch: Element at index ${index} with class '${_className}' is not of type ${typeCtor.name}`)
+      throw new Error(`Type missmatch: Element at index ${index} with class '${_className}' is not of type ${typeCtor.name}`)
     result.push(element as T)
   })
 
@@ -52,8 +48,5 @@ export function create_element<K extends keyof HTMLElementTagNameMap>(_tagName: 
 
 export function delete_element_by_id(_id: string): void {
   const element = document.getElementById(_id)
-  if (element)
-    element.remove()
-  else
-    throw new Error(`Element with id '${_id}' not found`)
+  element?.remove()
 }

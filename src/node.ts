@@ -2,6 +2,7 @@ import * as fs from "node:fs"
 import * as fp from "node:fs/promises"
 import * as ph from "node:path"
 import * as os from "node:os"
+import * as bs from "./base.js"
 
 
 
@@ -76,19 +77,17 @@ export abstract class Road {
   isAt: string
   readonly type: RoadT
 
-  constructor(_lookFor: string, _expectedType?: RoadT, _waitForExistence: boolean = true) {
-    if (_waitForExistence)
-      fs.accessSync(_lookFor, fs.constants.F_OK)
+  constructor(_lookFor: string, _expectedType?: RoadT) {
+    fs.accessSync(_lookFor, fs.constants.F_OK)
     this.isAt = ph.resolve(_lookFor)
     this.type = to_RoadT(this.isAt)
     if (_expectedType && this.type !== _expectedType)
       throw new Error(`Expected type ${_expectedType} but found ${this.type} at path '${this.isAt}'`)
   }
-  static make_async(_lookFor: string, _expectedType?: RoadT, _waitForExistence: boolean = true): Promise<Road> {
+  static make_async(_lookFor: string, _expectedType?: RoadT): Promise<Road> {
     return new Promise<Road>(async (_resolve, _reject) => {
       try {
-        if (_waitForExistence)
-          await fp.access(_lookFor, fs.constants.F_OK)
+        await fp.access(_lookFor, fs.constants.F_OK)
         const resolvedPath = ph.resolve(_lookFor)
         const roadType = to_RoadT(resolvedPath)
         if (_expectedType && roadType !== _expectedType)
@@ -114,6 +113,28 @@ export abstract class Road {
     } catch {
       return false
     }
+  }
+  wait_for_existence_sync(_attempts: number, _timeOutMs: number = 100, _onEachAttempt?: () => void, _abortSignal?: AbortSignal): void {
+    while (--_attempts >= 0) {
+      if (this.exists_sync())
+        return
+      if (_abortSignal?.aborted)
+        throw new Error(`Aborted waiting for existence of '${this.isAt}'`)
+      _onEachAttempt?.()
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, _timeOutMs)
+    }
+    throw new Error(`Timed out waiting for existence of '${this.isAt}'`)
+  }
+  async wait_for_existence(_attempts: number, _timeOutMs: number = 100, _onEachAttempt?: () => void, _abortSignal?: AbortSignal): Promise<void> {
+    while (--_attempts >= 0) {
+      if (await this.exists())
+        return
+      _onEachAttempt?.()
+      if (_abortSignal?.aborted)
+        throw new Error(`Aborted waiting for existence of '${this.isAt}'`)
+      await bs.sleep(_timeOutMs, _abortSignal)
+    }
+    throw new Error(`Timed out waiting for existence of '${this.isAt}'`)
   }
   stats_sync(): fs.Stats {
     return fs.lstatSync(this.isAt)
