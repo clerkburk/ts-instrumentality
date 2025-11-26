@@ -1,3 +1,8 @@
+if (typeof document === 'undefined' || typeof window === 'undefined')
+  throw new Error("This module can only be used in a browser (or similar) environment where 'document' and 'window' are defined.")
+
+
+
 export async function once_ready(): Promise<void> {
   return new Promise((resolve) => {
   if (document.readyState === 'loading')
@@ -20,33 +25,15 @@ export function by_id<T extends HTMLElement>(_id: string, _elementType?: new () 
 
 
 export function by_class<T extends HTMLElement>(_className: string, _elementType?: new() => T): T[] {
-  const typeCtor = _elementType ?? HTMLElement
-  const cleanClass = _className.startsWith('.') ? _className.slice(1) : _className
-  const elements = document.querySelectorAll(`.${cleanClass}`)
-  const result: T[] = []
-
-  elements.forEach((element, index) => {
+  return Array.from(document.getElementsByClassName(_className)).map((element, index) => {
+    const typeCtor = _elementType ?? HTMLElement
     if (!(element instanceof typeCtor))
       throw new Error(`Type missmatch: Element at index ${index} with class '${_className}' is not of type ${typeCtor.name}`)
-    result.push(element as T)
+    return element as T
   })
-
-  return result
 }
 
 
 export function by_tag<K extends keyof HTMLElementTagNameMap>(_tagName: K): HTMLElementTagNameMap[K][] {
   return Array.from(document.getElementsByTagName(_tagName))
-}
-
-
-
-export function create_element<K extends keyof HTMLElementTagNameMap>(_tagName: K): HTMLElementTagNameMap[K] {
-  return document.createElement(_tagName)
-}
-
-
-export function delete_element_by_id(_id: string): void {
-  const element = document.getElementById(_id)
-  element?.remove()
 }

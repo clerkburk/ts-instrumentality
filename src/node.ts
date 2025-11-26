@@ -1,3 +1,8 @@
+if (typeof process === 'undefined' || typeof require === 'undefined')
+  throw new Error("This module can only be used in a Node.js environment where 'process' and 'require' are defined.")
+
+
+
 import * as fs from "node:fs"
 import * as fp from "node:fs/promises"
 import * as ph from "node:path"
@@ -101,7 +106,7 @@ export abstract class Road {
 
   // Query methods (async and sync)
   underlying_type(): RoadT {
-    return this.type
+    return to_RoadT(this.isAt)
   }
   exists_sync(): boolean {
     return fs.existsSync(this.isAt) && to_RoadT(this.isAt) === this.type
