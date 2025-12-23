@@ -1,14 +1,14 @@
+import * as bs from "./base.js"
 if (typeof document === 'undefined' || typeof window === 'undefined')
   throw new Error("This module can only be used in a browser (or similar) environment where 'document' and 'window' are defined.")
 
 
 
-export async function once_ready(): Promise<void> {
+export function once_ready(): Promise<void> {
+  if (document.readyState === "complete" || document.readyState === "interactive")
+    return Promise.resolve()
   return new Promise((resolve) => {
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', () => resolve())
-  else
-    resolve()
+    document.addEventListener("DOMContentLoaded", () => resolve(), { once: true })
   })
 }
 

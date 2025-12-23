@@ -54,16 +54,10 @@ export abstract class Road {
     if (!(this instanceof road_type(this.isAt)))
       throw new Error(`Type missmatch: Path '${this.isAt}' is not of constructed type ${this.constructor.name}`)
   }
-  static factory(_lookFor: string): Promise<Road> {
-    return new Promise<Road>(async (resolve, reject) => {
-      try {
-        await fp.access(_lookFor, fs.constants.F_OK)
-        const roadCtor = road_type(_lookFor)
-        resolve(new roadCtor(_lookFor))
-      } catch (err) {
-        reject(err)
-      }
-    })
+  static async factory(_lookFor: string): Promise<Road> {
+    await fp.access(_lookFor, fs.constants.F_OK)
+    const roadCtor = road_type(_lookFor)
+    return new roadCtor(_lookFor)
   }
   static factory_sync(_lookFor: string): Road {
     fs.accessSync(_lookFor, fs.constants.F_OK)
@@ -145,7 +139,7 @@ export abstract class Road {
       throw e
     }
   }
-  async until_accessible(_mode: number = fs.constants.F_OK, _abortSignal: AbortSignal, _onEachAttempt: () => void | Promise<void> = () => {}): Promise<void> {
+  async until_accessible(_mode: number = fs.constants.F_OK, _abortSignal: AbortSignal, _onEachAttempt?: () => void | Promise<void>): Promise<void> {
     const watcher = fs.watch(this.isAt)
     try {
       if (await this.accessible(_mode))
@@ -154,7 +148,16 @@ export abstract class Road {
         if (await this.accessible(_mode))
           return
         else
-          await _onEachAttempt()
+          await _onEachAttempt?.()
+    } finally {
+      watcher.close()
+    }
+  }
+  async on_change(_abortSignal: AbortSignal, _onChange?: () => void | Promise<void>): Promise<void> {
+    const watcher = fs.watch(this.isAt)
+    try {
+      for await (const _ of on(watcher, 'change', { signal: _abortSignal }))
+        await _onChange?.()
     } finally {
       watcher.close()
     }
@@ -514,28 +517,17 @@ export class LiveFile extends File {
       Might be resource intensive on large files or
       rapid changes.
   */
-  static readonly syncInterval: number = 100 as const
   lastReadContent: Buffer = Buffer.alloc(0)
-  changeTo: Buffer | null = null
   abortController: AbortController = new AbortController()
 
   constructor(_at: string)  {
-    super(_at);
-    (async () => {
+    super(_at)
+    ;(async () => {
       while (!this.abortController.signal.aborted) {
-        try {
-          const currentContent = this.read_bytes_sync()
-          if (!this.lastReadContent.equals(currentContent))
-            this.lastReadContent = currentContent
-          if (this.changeTo && !this.lastReadContent.equals(this.changeTo)) {
-            this.write_bytes_sync(this.changeTo)
-            this.lastReadContent = this.changeTo
-            this.changeTo = null
-          }
-        } catch {
-          console.error(`LiveFile: Error syncing file at '${this.isAt}'`)
-        }
-        await bs.sleep(LiveFile.syncInterval, this.abortController.signal)
+        const currentContent = this.read_bytes_sync()
+        if (!currentContent.equals(this.lastReadContent))
+          this.lastReadContent = currentContent
+        await this.on_change(this.abortController.signal, async () => { /* just to wake up on changes */ } )
       }
     })()
   }

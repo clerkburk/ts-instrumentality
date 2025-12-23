@@ -35,12 +35,12 @@ export class Out {
   silence: boolean = false
   prefix: string
   suffix: string
-  printer: (... args: any[]) => void
+  printer: (... args: unknown[]) => void
 
-  constructor(_prefix?: string, _suffix?: string, _color?: ANSI_ESC, _printer?: (... args: any[]) => void) {
-    this.printer = _printer ?? console.log
-    this.prefix = _prefix ?? ""
-    this.suffix = _suffix ?? ""
+  constructor(_prefix: string = "", _suffix: string = "", _color?: ANSI_ESC, _printer: (... args: unknown[]) => void = console.log) {
+    this.printer = _printer
+    this.prefix = _prefix
+    this.suffix = _suffix
     if (_color) {
       this.prefix = _color + this.prefix + ANSI_ESC.RESET
       this.suffix = _color + this.suffix + ANSI_ESC.RESET
@@ -106,3 +106,9 @@ export function scoped(_target: unknown, _destructor: () => void) {
     }
   })(_target, _destructor)
 }
+
+
+
+export type primitive = string | number | boolean | bigint | symbol | null | undefined
+export type ctor<T, Args extends unknown[] = any[]> = new (..._args: Args) => T
+export type abstract_ctor<T, Args extends unknown[] = any[]> = abstract new (..._args: Args) => T
