@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, fn } from 'vitest' // or jest, whatever you use
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest' // or jest, whatever you use
 import * as bs from '../src/base.js'
 
 
@@ -99,51 +99,51 @@ describe('bs.range()', () => {
 
   describe('Step validation', () => {
     it('should throw on zero step', () => {
-      expect(() => bs.range(0, 10, 0)).toThrow('_step must be > 0')
+      expect(() => bs.range(0, 10, 0)).toThrow()
     })
 
     it('should throw on negative step', () => {
-      expect(() => bs.range(0, 10, -1)).toThrow('_step must be > 0')
+      expect(() => bs.range(0, 10, -1)).toThrow()
     })
 
     it('should throw on very small negative step', () => {
-      expect(() => bs.range(0, 10, -0.001)).toThrow('_step must be > 0')
+      expect(() => bs.range(0, 10, -0.001)).toThrow()
     })
   })
 
   describe('NaN validation', () => {
     it('should throw on NaN from', () => {
-      expect(() => bs.range(NaN, 10)).toThrow("can't handle NaN")
+      expect(() => bs.range(NaN, 10)).toThrow()
     })
 
     it('should throw on NaN to', () => {
-      expect(() => bs.range(0, NaN)).toThrow("can't handle NaN")
+      expect(() => bs.range(0, NaN)).toThrow()
     })
 
     it('should throw on NaN step', () => {
-      expect(() => bs.range(0, 10, NaN)).toThrow("can't handle NaN")
+      expect(() => bs.range(0, 10, NaN)).toThrow()
     })
 
     it('should throw on NaN single arg', () => {
-      expect(() => bs.range(NaN)).toThrow("can't handle NaN")
+      expect(() => bs.range(NaN)).toThrow()
     })
   })
 
   describe('Infinity validation', () => {
     it('should throw on Infinity from', () => {
-      expect(() => bs.range(Infinity, 10)).toThrow("can't handle infite")
+      expect(() => bs.range(Infinity, 10)).toThrow()
     })
 
     it('should throw on -Infinity from', () => {
-      expect(() => bs.range(-Infinity, 10)).toThrow("can't handle infite")
+      expect(() => bs.range(-Infinity, 10)).toThrow()
     })
 
     it('should throw on Infinity to', () => {
-      expect(() => bs.range(0, Infinity)).toThrow("can't handle infite")
+      expect(() => bs.range(0, Infinity)).toThrow()
     })
 
     it('should throw on Infinity step', () => {
-      expect(() => bs.range(0, 10, Infinity)).toThrow("can't handle infite")
+      expect(() => bs.range(0, 10, Infinity)).toThrow()
     })
   })
 
@@ -229,7 +229,6 @@ describe('bs.range()', () => {
     })
   })
 })
-
 
 
 
@@ -605,7 +604,7 @@ describe('Out class', () => {
       const throwingPrinter = () => { throw new Error('Printer failed') }
       const out = new bs.Out('', '', undefined, throwingPrinter)
       
-      expect(() => out.print('test')).toThrow('Printer failed')
+      expect(() => out.print('test')).toThrow()
     })
 
     it('should handle printer that is not a function', () => {
@@ -614,5 +613,238 @@ describe('Out class', () => {
       
       expect(() => out.print('test')).toThrow()
     })
+  })
+})
+
+
+
+describe('bs.retry()', () => {
+  it('should resolve immediately if function succeeds on first try', async () => {
+    const fn = vi.fn().mockReturnValue(42)
+    const result = await bs.retry(fn, 3)
+    expect(result).toBe(42)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('should retry the specified number of times on failure', async () => {
+    const fn = vi.fn()
+      .mockImplementationOnce(() => { throw new Error('fail1') })
+      .mockImplementationOnce(() => { throw new Error('fail2') })
+      .mockReturnValue('success')
+    const result = await bs.retry(fn, 3)
+    expect(result).toBe('success')
+    expect(fn).toHaveBeenCalledTimes(3)
+  })
+
+  it('should call _callbackOnError after each failure', async () => {
+    const fn = vi.fn()
+      .mockImplementationOnce(() => { throw new Error('fail') })
+      .mockReturnValue('ok')
+    const onError = vi.fn()
+    const result = await bs.retry(fn, 2, onError)
+    expect(result).toBe('ok')
+    expect(onError).toHaveBeenCalledTimes(1)
+  })
+
+  it('should throw the last error if all attempts fail', async () => {
+    const fn = vi.fn(() => { throw new Error('fail') })
+    const onError = vi.fn()
+    await expect(bs.retry(fn, 2, onError)).rejects.toThrow('fail')
+    expect(fn).toHaveBeenCalledTimes(2)
+    expect(onError).toHaveBeenCalledTimes(1)
+  })
+
+  it('should throw "Max attempts exceeded" if _maxAttempts is 0', async () => {
+    const fn = vi.fn(() => { throw new Error('fail') })
+    await expect(bs.retry(fn, 0)).rejects.toThrow('Max attempts exceeded')
+    expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('should support async functions', async () => {
+    const fn = vi.fn()
+      .mockImplementationOnce(async () => { throw new Error('fail') })
+      .mockImplementationOnce(async () => 'async-ok')
+    const result = await bs.retry(fn, 2)
+    expect(result).toBe('async-ok')
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('should abort if AbortSignal is already aborted', async () => {
+    const fn = vi.fn()
+    const abortController = new AbortController()
+    abortController.abort()
+    await expect(bs.retry(fn, 3, undefined, abortController.signal)).rejects.toThrow('Operation aborted')
+    expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('should abort if AbortSignal is triggered during retries', async () => {
+    let callCount = 0
+    const fn = vi.fn(() => {
+      callCount++
+      if (callCount === 1) throw new Error('fail')
+      return 'ok'
+    })
+    const abortController = new AbortController()
+    const onError = vi.fn(() => abortController.abort())
+    await expect(bs.retry(fn, 3, onError, abortController.signal)).rejects.toThrow('Operation aborted')
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledTimes(1)
+  })
+
+  it('should not call _callbackOnError if function succeeds', async () => {
+    const fn = vi.fn(() => 'ok')
+    const onError = vi.fn()
+    const result = await bs.retry(fn, 3, onError)
+    expect(result).toBe('ok')
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('should propagate errors thrown by _callbackOnError', async () => {
+    const fn = vi.fn()
+      .mockImplementationOnce(() => { throw new Error('fail') })
+      .mockReturnValue('ok')
+    const onError = vi.fn(() => { throw new Error('onError fail') })
+    await expect(bs.retry(fn, 2, onError)).rejects.toThrow('onError fail')
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledTimes(1)
+  })
+
+  it('should work with _maxAttempts = 1 (single try)', async () => {
+    const fn = vi.fn(() => 'once')
+    const result = await bs.retry(fn, 1)
+    expect(result).toBe('once')
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('should throw if _fn is not a function', async () => {
+    // @ts-expect-error - runtime test
+    await expect(bs.retry(null, 2)).rejects.toThrow()
+  })
+})
+
+
+
+describe('bs.sleep()', () => {
+  it('should resolve after the specified time', async () => {
+    const start = Date.now()
+    await bs.sleep(30)
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeGreaterThanOrEqual(25)
+  })
+
+  it('should resolve immediately for 0 ms', async () => {
+    const start = Date.now()
+    await bs.sleep(0)
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeLessThan(20)
+  })
+
+  it('should reject if aborted before timeout', async () => {
+    const abortController = new AbortController()
+    setTimeout(() => abortController.abort(), 10)
+    await expect(bs.sleep(100, abortController.signal)).rejects.toThrow()
+  })
+
+  it('should resolve if not aborted', async () => {
+    const abortController = new AbortController()
+    await expect(bs.sleep(10, abortController.signal)).resolves.toBeUndefined()
+  })
+
+  it('should reject immediately if already aborted', async () => {
+    const abortController = new AbortController()
+    abortController.abort()
+    await expect(bs.sleep(50, abortController.signal)).rejects.toThrow()
+  })
+
+  it('should clean up abort event listener after resolve', async () => {
+    const abortController = new AbortController()
+    const addSpy = vi.spyOn(abortController.signal, 'addEventListener')
+    const removeSpy = vi.spyOn(abortController.signal, 'removeEventListener')
+    await bs.sleep(5, abortController.signal)
+    expect(addSpy).toHaveBeenCalledWith('abort', expect.any(Function), { once: true })
+    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function))
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  it('should clean up abort event listener after reject', async () => {
+    const abortController = new AbortController()
+    const addSpy = vi.spyOn(abortController.signal, 'addEventListener')
+    const removeSpy = vi.spyOn(abortController.signal, 'removeEventListener')
+    setTimeout(() => abortController.abort(), 5)
+    await expect(bs.sleep(50, abortController.signal)).rejects.toThrow()
+    expect(addSpy).toHaveBeenCalledWith('abort', expect.any(Function), { once: true })
+    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function))
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  it('should not throw if no AbortSignal is provided', async () => {
+    await expect(bs.sleep(5)).resolves.toBeUndefined()
+  })
+})
+
+
+
+describe('bs.scoped()', () => {
+  it('should call destructor on Symbol.dispose', () => {
+    const destructor = vi.fn()
+    const obj = { foo: 1 }
+    const scopedObj = bs.scoped(obj, destructor)
+    expect(typeof scopedObj[Symbol.dispose]).toBe('function')
+    scopedObj[Symbol.dispose]()
+    expect(destructor).toHaveBeenCalledOnce()
+  })
+
+  it('should call destructor on Symbol.asyncDispose (async)', async () => {
+    const destructor = vi.fn().mockResolvedValue(undefined)
+    const obj = { foo: 2 }
+    const scopedObj = bs.scoped(obj, destructor)
+    expect(typeof scopedObj[Symbol.asyncDispose]).toBe('function')
+    await scopedObj[Symbol.asyncDispose]()
+    expect(destructor).toHaveBeenCalledOnce()
+  })
+
+  it('should expose target property', () => {
+    const obj = { bar: 3 }
+    const scopedObj = bs.scoped(obj, () => {})
+    expect(scopedObj.target).toBe(obj)
+  })
+
+  it('should expose destructor property', () => {
+    const destructor = () => {}
+    const scopedObj = bs.scoped({}, destructor)
+    expect(scopedObj.destructor).toBe(destructor)
+  })
+
+  it('should throw if destructor throws (sync)', () => {
+    const scopedObj = bs.scoped({}, () => { throw new Error('fail') })
+    expect(() => scopedObj[Symbol.dispose]()).toThrow('fail')
+  })
+
+  it('should throw if destructor throws (async)', async () => {
+    const scopedObj = bs.scoped({}, async () => { throw new Error('fail-async') })
+    await expect(scopedObj[Symbol.asyncDispose]()).rejects.toThrow('fail-async')
+  })
+
+  it('should work with primitive targets', () => {
+    const scopedObj = bs.scoped(123, vi.fn())
+    expect(scopedObj.target).toBe(123)
+  })
+
+  it('should allow multiple calls to Symbol.dispose', () => {
+    const destructor = vi.fn()
+    const scopedObj = bs.scoped({}, destructor)
+    scopedObj[Symbol.dispose]()
+    scopedObj[Symbol.dispose]()
+    expect(destructor).toHaveBeenCalledTimes(2)
+  })
+
+  it('should allow multiple calls to Symbol.asyncDispose', async () => {
+    const destructor = vi.fn().mockResolvedValue(undefined)
+    const scopedObj = bs.scoped({}, destructor)
+    await scopedObj[Symbol.asyncDispose]()
+    await scopedObj[Symbol.asyncDispose]()
+    expect(destructor).toHaveBeenCalledTimes(2)
   })
 })

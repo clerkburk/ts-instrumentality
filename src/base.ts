@@ -12,11 +12,6 @@
  * @returns An array of numbers representing the range.
  * @throws If `_step` is less than or equal to 0.
  * @throws If any argument is `NaN` or not finite.
- * @example
- * range(5) === [0, 1, 2, 3, 4]
- * range(2, 5) === [2, 3, 4]
- * range(5, 2) === [5, 4, 3, 2]
- * range(1, 10, 2) === [1, 3, 5, 7, 9]
  */
 export function range(_from: number, _to?: number, _step: number = 1): Array<number> {
   if (_to === undefined)
@@ -67,8 +62,6 @@ export class Out {
    * @param _suffix - A string to suffix each output message.
    * @param _color - An optional ANSI escape code to color the prefix and suffix.
    * @param _printer - A custom printing function (defaults to console.log).
-   * @example
-   * const out = new Out("[INFO]: '", "'", ANSI_ESC.GREEN);
    */
   constructor(_prefix: string = "", _suffix: string = "", _color?: ANSI_ESC, _printer: (... args: unknown[]) => void = console.log) {
     this.printer = _printer
@@ -84,8 +77,6 @@ export class Out {
    * Prints a formatted message to the console with a timestamp, prefix, and suffix.
    *
    * @param _args - The arguments to be printed.
-   * @example
-   * out.print("This is a log message.");
    */
   print(..._args: unknown[]) {
     if (!this.silence)
@@ -104,8 +95,6 @@ export class Out {
  * @param _abortSignal - An optional AbortSignal to abort the retry process.
  * @returns The result of the function if it succeeds within the allowed attempts.
  * @throws If the maximum number of attempts is exceeded or if the operation is aborted.
- * @example
- * const result = await retry(() => fetch("https://example.com"), 3, () => console.log("Retrying..."));
  */
 export async function retry<T>(_fn: ()=>T, _maxAttempts: number, _callbackOnError?: ()=>unknown, _abortSignal?: AbortSignal) {
   while (--_maxAttempts >= 0 && !(_abortSignal?.aborted ?? false)) {
@@ -131,10 +120,10 @@ export async function retry<T>(_fn: ()=>T, _maxAttempts: number, _callbackOnErro
  * @param _ms - The number of milliseconds to sleep.
  * @param _abortSignal - An optional AbortSignal to abort the sleep.
  * @returns A Promise that resolves after the specified duration or rejects if aborted.
- * @example
- * await sleep(1000); // Sleeps for 1 second
  */
 export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<void> {
+  if (_abortSignal?.aborted)
+    return Promise.reject(new Error("Sleep aborted"))
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       _abortSignal?.removeEventListener("abort", onAbort)
@@ -143,37 +132,11 @@ export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<vo
 
     function onAbort() {
       clearTimeout(timeout)
+      _abortSignal?.removeEventListener("abort", onAbort)
       reject(new Error("Sleep aborted"))
     }
     _abortSignal?.addEventListener("abort", onAbort, { once: true })
   })
-}
-/**
- * Synchronously sleeps for a specified duration using a busy-wait loop.
- *
- * @param _ms - The number of milliseconds to sleep.
- * @note This function blocks the event loop and should be used with caution.
- * @example
- * sleep_sync(1000); // Sleeps for 1 second
- */
-export function sleep_sync(_ms: number): void {
-  const end = Date.now() + _ms
-  while (Date.now() < end) { /* busy wait */ }
-}
-
-
-
-import * as cr from "crypto"
-/**
- * Generates a hash of a given string using the specified algorithm.
- * @param _str - The input string to be hashed.
- * @param _algorithm - The hashing algorithm to use (default is "sha256").
- * @returns The hexadecimal representation of the hash.
- * @example
- * const hashValue = hash("Hello, World!", "md5");
- */
-export function hash(_str: string, _algorithm: string = "sha256") {
-  return cr.createHash(_algorithm).update(_str).digest("hex")
 }
 
 
@@ -184,49 +147,16 @@ export function hash(_str: string, _algorithm: string = "sha256") {
  * @param _target - The target resource to be scoped.
  * @param _destructor - A function that will be called to clean up the resource.
  * @returns An object that implements the `Symbol.dispose` method for resource cleanup.
- * @example
- * using resource = scoped(someResource, () => {
- *   // Cleanup code here
- * });
+ * @throws If the destructor function fails during disposal.
  */
-export function scoped_sync(_target: unknown, _destructor: () => unknown) {
+export function scoped(_target: unknown, _destructor: () => unknown) {
   return new (class {
     constructor(public readonly target: unknown, public readonly destructor: () => unknown) {}
     [Symbol.dispose]() {
-      try {
-        this.destructor()
-      } catch { /* ignore errors during disposal */ }
+      this.destructor()
     }
     async [Symbol.asyncDispose]() {
-      try {
-        await this.destructor()
-      } catch { /* ignore errors during disposal */ }
-    }
-  })(_target, _destructor)
-}
-/**
- * Asynchronously creates a scoped resource with a destructor that is called when disposed.
- *
- * @param _target - The target resource to be scoped.
- * @param _destructor - An asynchronous function that will be called to clean up the resource.
- * @returns An object that implements the `Symbol.asyncDispose` method for resource cleanup.
- * @example
- * using async resource = await scoped_async(someResource, async () => {
- *   // Async cleanup code here
- * });
- */
-export async function scoped_async(_target: unknown, _destructor: () => unknown) {
-  return new (class {
-    constructor(public readonly target: unknown, public readonly destructor: () => unknown) {}
-    [Symbol.dispose]() {
-      try {
-        this.destructor()
-      } catch { /* ignore errors during disposal */ }
-    }
-    async [Symbol.asyncDispose]() {
-      try {
-        await this.destructor()
-      } catch { /* ignore errors during disposal */ }
+      await this.destructor()
     }
   })(_target, _destructor)
 }
