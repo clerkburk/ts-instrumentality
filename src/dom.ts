@@ -63,3 +63,15 @@ export function by_class<T extends HTMLElement>(_className: string, _elementType
 export function by_tag<K extends keyof HTMLElementTagNameMap>(_tagName: K): HTMLElementTagNameMap[K][] {
   return Array.from(document.getElementsByTagName(_tagName))
 }
+
+
+
+/**
+ * Dynamically add attributes to window
+ * 
+ * @param attrs - An object containing key-value pairs of attributes to add to the window.
+ */
+export function add_window_attributes(attrs: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(attrs))
+    (window as any)[key] = value
+}

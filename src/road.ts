@@ -13,6 +13,7 @@ import { on } from "node:events"
 
 
 
+
 // Type management
 /**
  * Represents a union type of default file system node constructors.
@@ -625,6 +626,34 @@ export class File extends Road {
   create_write_stream(): fs.WriteStream {
     this.assert_mutable()
     return fs.createWriteStream(this.isAt)
+  }
+  /**
+   * Compares the content and position of this file with another file to determine if they are identical.
+   *
+   * @param _other - The other `File` instance to compare against.
+   * @returns {Promise<boolean>} A promise that resolves to `true` if the contents are identical, or `false` otherwise.
+   * @throws {Error} If either file cannot be read.
+   */
+  async same_as(_other: File): Promise<boolean> {
+    if (this.isAt !== _other.isAt)
+      return false
+    const thisBuffer = await fp.readFile(this.isAt)
+    const otherBuffer = await fp.readFile(_other.isAt)
+    return thisBuffer.equals(otherBuffer)
+  }
+  /**
+   * Synchronously compares the content and position of this file with another file to determine if they are identical.
+   *
+   * @param _other - The other `File` instance to compare against.
+   * @returns {boolean} `true` if the contents are identical, `false` otherwise.
+   * @throws {Error} If either file cannot be read.
+   */
+  same_as_sync(_other: File): boolean {
+    if (this.isAt !== _other.isAt)
+      return false
+    const thisBuffer = fs.readFileSync(this.isAt)
+    const otherBuffer = fs.readFileSync(_other.isAt)
+    return thisBuffer.equals(otherBuffer)
   }
 
   // Properties
@@ -1333,7 +1362,7 @@ export class Socket extends UnusuableRoad { }
  *
  * @extends File
  */
-export class LiveFile extends File {
+export class LiveFile extends File implements AsyncDisposable, Disposable {
   lastReadContent: Buffer = Buffer.alloc(0)
   abortController: AbortController = new AbortController()
   constructor(_at: string) {
@@ -1377,7 +1406,7 @@ export class LiveFile extends File {
  * // File is deleted automatically when disposed.
  * ```
  */
-export class TempFile extends File {
+export class TempFile extends File implements AsyncDisposable, Disposable {
   override readonly mutable: boolean = true
   constructor() {
     super(File.create_sync(ph.join(os.tmpdir(), `tempfile_${Date.now()}_${crypto.randomUUID()}.tmp`)).isAt)
@@ -1408,7 +1437,7 @@ export class TempFile extends File {
  * // Use temp folder...
  * ```
  */
-export class TempFolder extends Folder {
+export class TempFolder extends Folder implements AsyncDisposable, Disposable {
   override readonly mutable: boolean = true
   constructor() {
     super(Folder.create_sync(ph.join(os.tmpdir(), `tempfolder_${Date.now()}_${crypto.randomUUID()}`)).isAt)

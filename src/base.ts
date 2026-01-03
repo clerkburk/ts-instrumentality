@@ -146,11 +146,11 @@ export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<vo
  *
  * @param _target - The target resource to be scoped.
  * @param _destructor - A function that will be called to clean up the resource.
- * @returns An object that implements the `Symbol.dispose` method for resource cleanup.
+ * @returns An object that implements the `Symbol.dispose` and `Symbol.asyncDispose` methods for resource cleanup.
  * @throws If the destructor function fails during disposal.
  */
 export function scoped(_target: unknown, _destructor: () => unknown) {
-  return new (class {
+  return new (class implements Disposable, AsyncDisposable {
     constructor(public readonly target: unknown, public readonly destructor: () => unknown) {}
     [Symbol.dispose]() {
       this.destructor()
