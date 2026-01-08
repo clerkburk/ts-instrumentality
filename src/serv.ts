@@ -9,6 +9,13 @@ import { URL } from "node:url"
 
 
 
+/**
+ * Represents metadata and reference tracking for an HTTP/2 client session.
+ *
+ * @property session - The underlying HTTP/2 client session instance.
+ * @property refCount - The number of active references to this session.
+ * @property [meta] - Additional metadata properties associated with the session.
+ */
 interface SessionData {
   readonly session: h2.ClientHttp2Session
   refCount: number
@@ -78,7 +85,7 @@ export class HTTP2ClientSessionHandler implements AsyncDisposable, Disposable {
       throw new Error("POST method required in headers for post method (why would you call post otherwise?)")
     return new Promise<h2.ClientHttp2Stream>((resolve, reject) => {
       const req = this.session.request({":path": _route, ..._headers})
-      req.on("response", (_headers, _flags) => resolve(req))
+      req.on("response", () => resolve(req))
       req.on("error", (err) => reject(err))
       if (_data)
         req.write(_data)
@@ -90,7 +97,7 @@ export class HTTP2ClientSessionHandler implements AsyncDisposable, Disposable {
       throw new Error("GET method required in headers for get method (again, why would you call get otherwise?)")
     return new Promise<h2.ClientHttp2Stream>((resolve, reject) => {
       const req = this.session.request({":path": _route, ..._headers})
-      req.on("response", (_headers, _flags) => resolve(req))
+      req.on("response", () => resolve(req))
       req.on("error", (err) => reject(err))
       req.end()
     })

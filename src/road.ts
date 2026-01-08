@@ -13,7 +13,6 @@ import { on } from "node:events"
 
 
 
-
 // Type management
 /**
  * Represents a union type of default file system node constructors.
@@ -311,6 +310,7 @@ export abstract class Road {
     try {
       if (await this.accessible(_mode))
         return
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of on(watcher, 'change', { signal: _abortSignal }))
         if (await this.accessible(_mode))
           return
@@ -331,6 +331,7 @@ export abstract class Road {
   async on_change(_abortSignal: AbortSignal, _thenDo?: () => unknown): Promise<void> {
     const watcher = fs.watch(this.isAt)
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of on(watcher, 'change', { signal: _abortSignal }))
         await _thenDo?.()
     } finally {
@@ -361,6 +362,29 @@ export abstract class Road {
  * 
  * Methods are provided for both synchronous and asynchronous usage, allowing flexibility
  * depending on the application's requirements.
+ * 
+ * @method `create`: Asynchronously creates a file at the specified path if it does not exist.
+ * @method `create_sync`: Synchronously creates a file at the specified path if it does not exist.
+ * @method `read_text_sync`: Synchronously reads the file content as a UTF-8 string.
+ * @method `read_text`: Asynchronously reads the file content as a UTF-8 string.
+ * @method `it_lines`: Asynchronously iterates over the lines of the file.
+ * @method `write_text_sync`: Synchronously writes a UTF-8 string to the file.
+ * @method `write_text`: Asynchronously writes a UTF-8 string to the file.
+ * @method `append_text_sync`: Synchronously appends a UTF-8 string to the file.
+ * @method `append_text`: Asynchronously appends a UTF-8 string to the file.
+ * @method `read_bytes_sync`: Synchronously reads the file content as a Buffer.
+ * @method `read_bytes`: Asynchronously reads the file content as a Buffer.
+ * @method `it_bytes_sync`: Synchronously iterates over the file content in chunks.
+ * @method `it_bytes`: Asynchronously iterates over the file content in chunks.
+ * @method `write_bytes_sync`: Synchronously writes a Buffer to the file.
+ * @method `write_bytes`: Asynchronously writes a Buffer to the file.
+ * @method `append_bytes_sync`: Synchronously appends a Buffer to the file.
+ * @method `append_bytes`: Asynchronously appends a Buffer to the file.
+ * @method `it_bytes_writeable_sync`: Synchronously provides a writable stream for writing file content in chunks.
+ * @method `it_bytes_writeable`: Asynchronously provides a writable stream for writing file content in chunks.
+ * @method `create_read_stream`: Creates a readable stream for the file.
+ * @method `create_write_stream`: Creates a writable stream for the file.
+ * @method `extension`: Returns the file extension.
  * 
  * @remarks
  * - The file path is managed internally and can be updated by operations such as move or rename.
@@ -772,30 +796,26 @@ export class File extends Road {
 
 
 
-import * as glob from "fast-glob"
 /**
  * Represents a folder in the filesystem, extending the `Road` class.
  * Provides synchronous and asynchronous methods for folder creation, traversal, listing, searching, and manipulation.
  *
- * ## Static Methods
- * - `create(_at: string): Promise<Folder>`: Asynchronously creates a folder at the specified path if it does not exist.
- * - `create_sync(_at: string): Folder`: Synchronously creates a folder at the specified path if it does not exist.
- * - `walk_list_sync(_glob: string): Road[]`: Synchronously lists all entries matching a glob pattern.
- * - `walk_list(_glob: string): Promise<Road[]>`: Asynchronously lists all entries matching a glob pattern.
- *
- * ## Instance Methods
- * - `list_sync<T extends Road>(expectedType?: new (_: string) => T): Road[] | T[]`: Synchronously lists entries in the folder, optionally filtering by type.
- * - `list<T extends Road>(_expectedType?: new (_: string) => T): Promise<Road[] | T[]>`: Asynchronously lists entries in the folder, optionally filtering by type.
- * - `find_sync<T extends Road>(name: string, _expectedType?: new (_: string) => T): Road | T | null`: Synchronously finds an entry by name, optionally filtering by type.
- * - `find<T extends Road>(name: string, _expectedType?: new (_: string) => T): Promise<Road | T | null>`: Asynchronously finds an entry by name, optionally filtering by type.
- * - `delete_sync(): void`: Synchronously deletes the folder and its contents.
- * - `delete(): Promise<void>`: Asynchronously deletes the folder and its contents.
- * - `move_sync(_into: Folder): void`: Synchronously moves the folder into another folder.
- * - `move(_into: Folder): Promise<void>`: Asynchronously moves the folder into another folder.
- * - `copy_sync(_into: Folder): this`: Synchronously copies the folder into another folder.
- * - `copy(_into: Folder): Promise<this>`: Asynchronously copies the folder into another folder.
- * - `rename_sync(_to: string): void`: Synchronously renames the folder.
- * - `rename(_to: string): Promise<void>`: Asynchronously renames the folder.
+ * @function `create`: Asynchronously creates a folder at the specified path if it does not exist.
+ * @function `create_sync`: Synchronously creates a folder at the specified path if it does not exist.
+ * @function `walk_list_sync`: Synchronously lists all entries matching a glob pattern.
+ * @function `walk_list`: Asynchronously lists all entries matching a glob pattern.
+ * @method `list_sync`: Synchronously lists entries in the folder, optionally filtering by type.
+ * @method `list`: Asynchronously lists entries in the folder, optionally filtering by type.
+ * @method `find_sync`: Synchronously finds an entry by name, optionally filtering by type.
+ * @method `find`: Asynchronously finds an entry by name, optionally filtering by type.
+ * @method `delete_sync`: Synchronously deletes the folder and its contents.
+ * @method `delete`: Asynchronously deletes the folder and its contents.
+ * @method `move_sync`: Synchronously moves the folder into another folder.
+ * @method `move`: Asynchronously moves the folder into another folder.
+ * @method `copy_sync`: Synchronously copies the folder into another folder.
+ * @method `copy`: Asynchronously copies the folder into another folder.
+ * @method `rename_sync`: Synchronously renames the folder.
+ * @method `rename`: Asynchronously renames the folder.
  *
  * @remarks
  * This class assumes the existence of the `Road` base class and uses Node.js `fs` and `glob` modules for filesystem operations.
@@ -830,45 +850,6 @@ export class Folder extends Road {
       fs.mkdirSync(_at, { recursive: true })
     }
     return new Folder(_at)
-  }
-  /**
-   * Synchronously walks through the file system entries matching the given glob pattern
-   * and returns an array of `Road` instances for each matched entry.
-   *
-   * @param _glob - The glob pattern to match file system entries.
-   * @returns An array of `Road` objects created from the matched entries.
-   */
-  static walk_list_sync(_glob: string): Road[] {
-    const entries = glob.sync(_glob, { dot: true, onlyFiles: false, absolute: true })
-    return entries.map(entry => Road.factory_sync(entry))
-  }
-  /**
-   * Asynchronously walks through the file system entries matching the given glob pattern
-   * and returns an array of `Road` instances for each entry found.
-   *
-   * @param _glob - The glob pattern to match file system entries.
-   * @returns A promise that resolves to an array of `Road` objects corresponding to the matched entries.
-   */
-  static async walk_list(_glob: string): Promise<Road[]> {
-    const entries = await glob.async(_glob, { dot: true, onlyFiles: false, absolute: true })
-    const roads = entries.map(async entry => Road.factory(entry))
-    return Promise.all(roads)
-  }
-  /**
-   * Asynchronously iterates over file system entries matching the given glob pattern.
-   *
-   * @param _glob - The glob pattern to match files and directories.
-   * @returns An async iterable iterator that yields `Road` instances for each matched entry.
-   *
-   * @example
-   * for await (const road of Node.walk_it('**\*')) {
-   *   // process each road
-   * }
-   */
-  static async *walk_it(_glob: string): AsyncIterableIterator<Road> {
-    const stream = glob.stream(_glob, { dot: true, onlyFiles: false, absolute: true })
-    for await (const entry of stream)
-      yield Road.factory(entry.toString()) // .toString() because both Buffer and String are possible
   }
 
   // list_sync overloads
@@ -1089,6 +1070,7 @@ export class Folder extends Road {
  * ```
  */
 export class SymbolicLink extends Road {
+
   /**
    * Creates a symbolic link at the specified path if it does not already exist.
    *
@@ -1314,12 +1296,12 @@ export abstract class UnusuableRoad extends Road {
   override readonly mutable: boolean = false // Modification is most likely to cause system issues (e.g. deleting a device file)
   delete_sync(): never { throw new Error(`Cannot delete type ${this.constructor.name} at '${this.isAt}'`) }
   async delete(): Promise<never> { throw new Error(`Cannot delete type ${this.constructor.name} at '${this.isAt}'`) }
-  move_sync(_into: Folder): never { throw new Error(`Cannot move type ${this.constructor.name} at '${this.isAt}'`) }
-  async move(_into: Folder): Promise<never> { throw new Error(`Cannot move type ${this.constructor.name} at '${this.isAt}'`) }
-  copy_sync(_into: Folder): never { throw new Error(`Cannot copy type ${this.constructor.name} at '${this.isAt}'`) }
-  async copy(_into: Folder): Promise<never> { throw new Error(`Cannot copy type ${this.constructor.name} at '${this.isAt}'`) }
-  rename_sync(_to: string): never { throw new Error(`Cannot rename type ${this.constructor.name} at '${this.isAt}'`) }
-  async rename(_to: string): Promise<never> { throw new Error(`Cannot rename type ${this.constructor.name} at '${this.isAt}'`) }
+  move_sync(): never { throw new Error(`Cannot move type ${this.constructor.name} at '${this.isAt}'`) }
+  async move(): Promise<never> { throw new Error(`Cannot move type ${this.constructor.name} at '${this.isAt}'`) }
+  copy_sync(): never { throw new Error(`Cannot copy type ${this.constructor.name} at '${this.isAt}'`) }
+  async copy(): Promise<never> { throw new Error(`Cannot copy type ${this.constructor.name} at '${this.isAt}'`) }
+  rename_sync(): never { throw new Error(`Cannot rename type ${this.constructor.name} at '${this.isAt}'`) }
+  async rename(): Promise<never> { throw new Error(`Cannot rename type ${this.constructor.name} at '${this.isAt}'`) }
 }
 /**
  * Represents a block device in the system.
@@ -1350,6 +1332,9 @@ export class Socket extends UnusuableRoad { }
  * This class extends the `File` class and maintains the latest content of the file in memory.
  * It continuously monitors the file for changes and updates its content accordingly.
  * 
+ * @method `update_sync`: Synchronously updates the in-memory content of the file.
+ * @method `update`: Asynchronously updates the in-memory content of the file.
+ * 
  * @remarks
  * - May be resource intensive for large files or when the file changes rapidly.
  * - Uses an `AbortController` to allow for graceful disposal and stopping of the monitoring loop.
@@ -1370,7 +1355,7 @@ export class LiveFile extends File implements AsyncDisposable, Disposable {
     ;(async () => {
       while (!this.abortController.signal.aborted) {
         await this.update()
-        await this.on_change(this.abortController.signal )
+        await this.on_change(this.abortController.signal)
       }
     })()
   }
@@ -1443,9 +1428,9 @@ export class TempFolder extends Folder implements AsyncDisposable, Disposable {
     super(Folder.create_sync(ph.join(os.tmpdir(), `tempfolder_${Date.now()}_${crypto.randomUUID()}`)).isAt)
   }
   [Symbol.dispose](): void {
-    try { this.delete_sync() } catch { console.error(`TempFolder: Failed to delete temporary folder at '${this.isAt}'`) }
+    this.delete_sync()
   }
   async [Symbol.asyncDispose](): Promise<void> {
-    try { await this.delete() } catch { console.error(`TempFolder: Failed to delete temporary folder at '${this.isAt}'`) }
+    await this.delete()
   }
 }

@@ -150,7 +150,7 @@ export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<vo
  * @throws If the destructor function fails during disposal.
  */
 export function scoped(_target: unknown, _destructor: () => unknown) {
-  return new (class implements Disposable, AsyncDisposable {
+  return new (class implements AsyncDisposable, Disposable {
     constructor(public readonly target: unknown, public readonly destructor: () => unknown) {}
     [Symbol.dispose]() {
       this.destructor()
