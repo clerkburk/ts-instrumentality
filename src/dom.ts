@@ -3,7 +3,7 @@
  *
  * @returns A Promise that resolves when the DOM is ready.
  */
-export function onceReady(): Promise<void> {
+export function once_ready(): Promise<void> {
   if (document.readyState === "complete" || document.readyState === "interactive")
     return Promise.resolve()
   return new Promise((resolve) => {
@@ -21,7 +21,7 @@ export function onceReady(): Promise<void> {
  * @returns The HTML element with the specified ID and type.
  * @throws Will throw an error if the element is not found or does not match the expected type.
  */
-export function byId<T extends HTMLElement>(_id: string, _elementType?: new () => T): T {
+export function by_id<T extends HTMLElement>(_id: string, _elementType?: new () => T): T {
   const element = document.getElementById(_id)
   const typeCtor = _elementType ?? HTMLElement
   if (!(element instanceof typeCtor))
@@ -39,7 +39,7 @@ export function byId<T extends HTMLElement>(_id: string, _elementType?: new () =
  * @returns An array of HTML elements with the specified class name and type.
  * @throws Will throw an error if any element does not match the expected type.
  */
-export function byClass<T extends HTMLElement>(_className: string, _elementType?: new() => T): T[] {
+export function by_class<T extends HTMLElement>(_className: string, _elementType?: new() => T): T[] {
   return Array.from(document.getElementsByClassName(_className)).map((element, index) => {
     const typeCtor = _elementType ?? HTMLElement
     if (!(element instanceof typeCtor))
@@ -55,7 +55,7 @@ export function byClass<T extends HTMLElement>(_className: string, _elementType?
  *
  * @param _tagName - The tag name of the HTML elements to retrieve.
  */
-export function byTag<K extends keyof HTMLElementTagNameMap>(_tagName: K): HTMLElementTagNameMap[K][] {
+export function by_tag<K extends keyof HTMLElementTagNameMap>(_tagName: K): HTMLElementTagNameMap[K][] {
   return Array.from(document.getElementsByTagName(_tagName))
 }
 
