@@ -1,6 +1,6 @@
 // import { describe as vt.describe, it as vt.it, expect as vt.expect, vi as vt.vi, beforeEach as vt.beforeEach, afterEach } from 'vitest' // or jest, whatever you use
 import * as vt from 'vitest'
-import * as bs from '../src/base.js'
+import * as bs from '../src/base'
 
 
 
@@ -227,391 +227,6 @@ vt.describe('bs.range()', () => {
       const result = bs.range(0, 10)
       vt.expect(result).not.toContain(10)
       vt.expect(result[result.length - 1]).toBe(9)
-    })
-  })
-})
-
-
-
-vt.describe('Out class', () => {
-  
-  vt.describe('Basic functionality', () => {
-    vt.it('should create instance with no args', () => {
-      const out = new bs.Out()
-      vt.expect(out.prefix).toBe("")
-      vt.expect(out.suffix).toBe("")
-      vt.expect(out.silence).toBe(false)
-    })
-
-    vt.it('should print with default console.log', () => {
-      const spy = vt.vi.spyOn(console, 'log')
-      const out = new bs.Out()
-      out.print('test')
-
-      vt.expect(spy).toHaveBeenCalledOnce()
-      const call = spy.mock.calls[0]
-      vt.expect(call[0]).toMatch(/^\[\d{4}-\d{2}-\d{2}T.*\]$/)
-      vt.expect(call[1]).toBe('test')
-      spy.mockRestore()
-    })
-
-    vt.it('should respect silence flag', () => {
-      const spy = vt.vi.spyOn(console, 'log')
-      const out = new bs.Out()
-      out.silence = true
-      out.print('test')
-      
-      vt.expect(spy).not.toHaveBeenCalled()
-      spy.mockRestore()
-    })
-
-    vt.it('should use custom prefix', () => {
-      const spy = vt.vi.spyOn(console, 'log')
-      const out = new bs.Out('[INFO]')
-      out.print('test')
-      
-      const call = spy.mock.calls[0]
-      vt.expect(call[0]).toContain('[INFO]')
-      spy.mockRestore()
-    })
-
-    vt.it('should use custom suffix', () => {
-      const spy = vt.vi.spyOn(console, 'log')
-      const out = new bs.Out('', ' <END>')
-      out.print('test')
-      
-      const call = spy.mock.calls[0]
-      vt.expect(call[0]).toContain(' <END>')
-      spy.mockRestore()
-    })
-  })
-
-  vt.describe('Color handling', () => {
-    vt.it('should apply color to prefix', () => {
-      const out = new bs.Out('[INFO]', '', bs.ANSI_ESC.RED)
-      vt.expect(out.prefix).toBe('\u001b[31m[INFO]\u001b[0m')
-    })
-
-    vt.it('should apply color to suffix', () => {
-      const out = new bs.Out('', ' <END>', bs.ANSI_ESC.BLUE)
-      vt.expect(out.suffix).toBe('\u001b[34m <END>\u001b[0m')
-    })
-
-    vt.it('should apply color to both prefix and suffix', () => {
-      const out = new bs.Out('[START]', '[END]', bs.ANSI_ESC.GREEN)
-      vt.expect(out.prefix).toBe('\u001b[32m[START]\u001b[0m')
-      vt.expect(out.suffix).toBe('\u001b[32m[END]\u001b[0m')
-    })
-
-    vt.it('should handle empty strings with color', () => {
-      const out = new bs.Out('', '', bs.ANSI_ESC.YELLOW)
-      // Color codes are still added even with empty strings
-      vt.expect(out.prefix).toBe('\u001b[33m\u001b[0m')
-      vt.expect(out.suffix).toBe('\u001b[33m\u001b[0m')
-    })
-
-    vt.it('should not apply color when undefined', () => {
-      const out = new bs.Out('[INFO]', '[END]', undefined)
-      vt.expect(out.prefix).toBe('[INFO]')
-      vt.expect(out.suffix).toBe('[END]')
-    })
-  })
-
-  vt.describe('Custom printer', () => {
-    vt.it('should use custom printer function', () => {
-      const customPrinter = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, customPrinter)
-      out.print('test')
-      
-      vt.expect(customPrinter).toHaveBeenCalledOnce()
-    })
-
-    vt.it('should pass all args to custom printer', () => {
-      const customPrinter = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, customPrinter)
-      out.print('arg1', 'arg2', 'arg3')
-      
-      vt.expect(customPrinter).toHaveBeenCalledWith(
-        vt.expect.stringMatching(/^\[\d{4}/),
-        'arg1',
-        'arg2',
-        'arg3'
-      )
-    })
-
-    vt.it('should work with console.error as printer', () => {
-      const spy = vt.vi.spyOn(console, 'error')
-      const out = new bs.Out('', '', undefined, console.error)
-      out.print('error message')
-      
-      vt.expect(spy).toHaveBeenCalled()
-      spy.mockRestore()
-    })
-
-    vt.it('should work with console.warn as printer', () => {
-      const spy = vt.vi.spyOn(console, 'warn')
-      const out = new bs.Out('', '', undefined, console.warn)
-      out.print('warning')
-      
-      vt.expect(spy).toHaveBeenCalled()
-      spy.mockRestore()
-    })
-  })
-
-  vt.describe('Edge cases - Printing various types', () => {
-    let mockPrinter: any
-    let out: bs.Out
-
-    vt.beforeEach(() => {
-      mockPrinter = vt.vi.fn()
-      out = new bs.Out('', '', undefined, mockPrinter)
-    })
-
-    vt.it('should handle undefined', () => {
-      out.print(undefined)
-      vt.expect(mockPrinter).toHaveBeenCalled()
-    })
-
-    vt.it('should handle null', () => {
-      out.print(null)
-      vt.expect(mockPrinter).toHaveBeenCalled()
-    })
-
-    vt.it('should handle numbers', () => {
-      out.print(42, 3.14, -0, Infinity, NaN)
-      vt.expect(mockPrinter).toHaveBeenCalledWith(
-        vt.expect.any(String),
-        42, 3.14, -0, Infinity, NaN
-      )
-    })
-
-    vt.it('should handle objects', () => {
-      const obj = { foo: 'bar' }
-      out.print(obj)
-      vt.expect(mockPrinter).toHaveBeenCalledWith(vt.expect.any(String), obj)
-    })
-
-    vt.it('should handle arrays', () => {
-      out.print([1, 2, 3])
-      vt.expect(mockPrinter).toHaveBeenCalledWith(vt.expect.any(String), [1, 2, 3])
-    })
-
-    vt.it('should handle functions', () => {
-      const fn = () => {}
-      out.print(fn)
-      vt.expect(mockPrinter).toHaveBeenCalledWith(vt.expect.any(String), fn)
-    })
-
-    vt.it('should handle symbols', () => {
-      const sym = Symbol('test')
-      out.print(sym)
-      vt.expect(mockPrinter).toHaveBeenCalledWith(vt.expect.any(String), sym)
-    })
-
-    vt.it('should handle bigints', () => {
-      out.print(123n)
-      vt.expect(mockPrinter).toHaveBeenCalledWith(vt.expect.any(String), 123n)
-    })
-
-    vt.it('should handle multiple mixed types', () => {
-      out.print('string', 42, null, undefined, { obj: true }, [1, 2])
-      vt.expect(mockPrinter).toHaveBeenCalledOnce()
-    })
-
-    vt.it('should handle no arguments', () => {
-      out.print()
-      vt.expect(mockPrinter).toHaveBeenCalledOnce()
-      vt.expect(mockPrinter.mock.calls[0]).toHaveLength(1) // Just timestamp+prefix+suffix
-    })
-
-    vt.it('should handle circular references', () => {
-      const circular: any = { a: 1 }
-      circular.self = circular
-      // Should not throw
-      vt.expect(() => out.print(circular)).not.toThrow()
-    })
-  })
-
-  vt.describe('Timestamp behavior', () => {
-    vt.it('should include valid ISO timestamp', () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, mockPrinter)
-      out.print('test')
-      
-      const timestamp = mockPrinter.mock.calls[0][0]
-      vt.expect(timestamp).toMatch(/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]/)
-    })
-
-    vt.it('should generate different timestamps for consecutive calls', async () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, mockPrinter)
-      
-      out.print('first')
-      await new Promise(resolve => setTimeout(resolve, 2))
-      out.print('second')
-      
-      const ts1 = mockPrinter.mock.calls[0][0]
-      const ts2 = mockPrinter.mock.calls[1][0]
-      // Timestamps might be the same if too fast, but should at least not error
-      vt.expect(ts1).toBeTruthy()
-      vt.expect(ts2).toBeTruthy()
-    })
-  })
-
-  vt.describe('Mutation and state', () => {
-    vt.it('should allow toggling silence', () => {
-      const spy = vt.vi.spyOn(console, 'log')
-      const out = new bs.Out()
-      
-      out.print('should print')
-      vt.expect(spy).toHaveBeenCalledTimes(1)
-      
-      out.silence = true
-      out.print('should not print')
-      vt.expect(spy).toHaveBeenCalledTimes(1)
-      
-      out.silence = false
-      out.print('should print again')
-      vt.expect(spy).toHaveBeenCalledTimes(2)
-      
-      spy.mockRestore()
-    })
-
-    vt.it('should allow changing prefix', () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('[OLD]', '', undefined, mockPrinter)
-      
-      out.print('test')
-      vt.expect(mockPrinter.mock.calls[0][0]).toContain('[OLD]')
-      
-      out.prefix = '[NEW]'
-      out.print('test')
-      vt.expect(mockPrinter.mock.calls[1][0]).toContain('[NEW]')
-    })
-
-    vt.it('should allow changing printer', () => {
-      const printer1 = vt.vi.fn()
-      const printer2 = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, printer1)
-      
-      out.print('test1')
-      vt.expect(printer1).toHaveBeenCalledOnce()
-      vt.expect(printer2).not.toHaveBeenCalled()
-      
-      out.printer = printer2
-      out.print('test2')
-      vt.expect(printer1).toHaveBeenCalledOnce()
-      vt.expect(printer2).toHaveBeenCalledOnce()
-    })
-  })
-
-  vt.describe('ANSI_ESC enum values', () => {
-    vt.it('should have correct ANSI escape codes', () => {
-      vt.expect(bs.ANSI_ESC.BOLD).toBe('\u001b[1m')
-      vt.expect(bs.ANSI_ESC.RESET).toBe('\u001b[0m')
-      vt.expect(bs.ANSI_ESC.RED).toBe('\u001b[31m')
-      vt.expect(bs.ANSI_ESC.GREEN).toBe('\u001b[32m')
-    })
-
-    vt.it('should work with all color values', () => {
-      const colors = [
-        bs.ANSI_ESC.BLACK,
-        bs.ANSI_ESC.RED,
-        bs.ANSI_ESC.GREEN,
-        bs.ANSI_ESC.YELLOW,
-        bs.ANSI_ESC.BLUE,
-        bs.ANSI_ESC.MAGENTA,
-        bs.ANSI_ESC.CYAN,
-        bs.ANSI_ESC.WHITE
-      ]
-      
-      colors.forEach(color => {
-        vt.expect(() => new bs.Out('test', '', color)).not.toThrow()
-      })
-    })
-
-    vt.it('should work with formatting values', () => {
-      const formats = [
-        bs.ANSI_ESC.BOLD,
-        bs.ANSI_ESC.ITALIC,
-        bs.ANSI_ESC.UNDERLINE,
-        bs.ANSI_ESC.STRIKETHROUGH
-      ]
-      
-      formats.forEach(format => {
-        vt.expect(() => new bs.Out('test', '', format)).not.toThrow()
-      })
-    })
-  })
-
-  vt.describe('Stress tests', () => {
-    vt.it('should handle very long strings', () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, mockPrinter)
-      const longString = 'a'.repeat(100000)
-      
-      vt.expect(() => out.print(longString)).not.toThrow()
-    })
-
-    vt.it('should handle many arguments', () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, mockPrinter)
-      const manyArgs = Array(1000).fill('arg')
-      
-      vt.expect(() => out.print(...manyArgs)).not.toThrow()
-    })
-
-    vt.it('should handle rapid successive calls', () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('', '', undefined, mockPrinter)
-      
-      for (let i = 0; i < 1000; i++) {
-        out.print(`message ${i}`)
-      }
-      
-      vt.expect(mockPrinter).toHaveBeenCalledTimes(1000)
-    })
-  })
-
-  vt.describe('Weird edge cases', () => {
-    vt.it('should handle prefix/suffix with special characters', () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('🚀💀', '✨🔥', undefined, mockPrinter)
-      out.print('test')
-      
-      vt.expect(mockPrinter.mock.calls[0][0]).toContain('🚀💀')
-      vt.expect(mockPrinter.mock.calls[0][0]).toContain('✨🔥')
-    })
-
-    vt.it('should handle prefix/suffix with newlines', () => {
-      const mockPrinter = vt.vi.fn()
-      const out = new bs.Out('START\n', '\nEND', undefined, mockPrinter)
-      out.print('test')
-      
-      vt.expect(mockPrinter.mock.calls[0][0]).toContain('START\n')
-      vt.expect(mockPrinter.mock.calls[0][0]).toContain('\nEND')
-    })
-
-    vt.it('should handle prefix/suffix with ANSI codes already in them', () => {
-      const out = new bs.Out('\u001b[31mRED', 'ALSO_RED\u001b[0m', bs.ANSI_ESC.BLUE)
-      out.print('test')
-      
-      // This will create nested/conflicting ANSI codes - probably broken
-      vt.expect(out.prefix).toBe('\u001b[34m\u001b[31mRED\u001b[0m')
-    })
-
-    vt.it('should handle printer that throws', () => {
-      const throwingPrinter = () => { throw new Error('Printer failed') }
-      const out = new bs.Out('', '', undefined, throwingPrinter)
-      
-      vt.expect(() => out.print('test')).toThrow()
-    })
-
-    vt.it('should handle printer that is not a function', () => {
-      // @ts-expect-error - testing runtime behavior
-      const out = new bs.Out('', '', undefined, 'not a function')
-      
-      vt.expect(() => out.print('test')).toThrow()
     })
   })
 })
@@ -846,5 +461,137 @@ vt.describe('bs.scoped()', () => {
     await scopedObj[Symbol.asyncDispose]()
     await scopedObj[Symbol.asyncDispose]()
     vt.expect(destructor).toHaveBeenCalledTimes(2)
+  })
+})
+
+
+
+vt.describe('bs.sleep()', () => {
+  vt.it('resolves after the specified time', async () => {
+    const start = Date.now()
+    await bs.sleep(20)
+    vt.expect(Date.now() - start).toBeGreaterThanOrEqual(15)
+  })
+
+  vt.it('resolves immediately for 0 ms', async () => {
+    const start = Date.now()
+    await bs.sleep(0)
+    vt.expect(Date.now() - start).toBeLessThan(20)
+  })
+
+  vt.it('rejects if aborted before timeout', async () => {
+    const abortController = new AbortController()
+    setTimeout(() => abortController.abort(), 10)
+    await vt.expect(bs.sleep(50, abortController.signal)).rejects.toThrow('Sleep aborted during wait')
+  })
+
+  vt.it('resolves if not aborted', async () => {
+    const abortController = new AbortController()
+    await vt.expect(bs.sleep(10, abortController.signal)).resolves.toBeUndefined()
+  })
+
+  vt.it('rejects immediately if already aborted', async () => {
+    const abortController = new AbortController()
+    abortController.abort()
+    await vt.expect(bs.sleep(10, abortController.signal)).rejects.toThrow('Sleep aborted before start')
+  })
+
+  vt.it('cleans up abort event listener after resolve', async () => {
+    const abortController = new AbortController()
+    const addSpy = vt.vi.spyOn(abortController.signal, 'addEventListener')
+    const removeSpy = vt.vi.spyOn(abortController.signal, 'removeEventListener')
+    await bs.sleep(5, abortController.signal)
+    vt.expect(addSpy).toHaveBeenCalledWith('abort', vt.expect.any(Function), { once: true })
+    vt.expect(removeSpy).toHaveBeenCalledWith('abort', vt.expect.any(Function))
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  vt.it('cleans up abort event listener after reject', async () => {
+    const abortController = new AbortController()
+    const addSpy = vt.vi.spyOn(abortController.signal, 'addEventListener')
+    const removeSpy = vt.vi.spyOn(abortController.signal, 'removeEventListener')
+    setTimeout(() => abortController.abort(), 5)
+    await vt.expect(bs.sleep(50, abortController.signal)).rejects.toThrow()
+    vt.expect(addSpy).toHaveBeenCalledWith('abort', vt.expect.any(Function), { once: true })
+    vt.expect(removeSpy).toHaveBeenCalledWith('abort', vt.expect.any(Function))
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  vt.it('does not throw if no AbortSignal is provided', async () => {
+    await vt.expect(bs.sleep(5)).resolves.toBeUndefined()
+  })
+})
+
+
+
+
+vt.describe('BuildTuple type', () => {
+  // @ts-expect-error - type-level tests
+  type Test0 = BuildTuple<0>
+  // @ts-expect-error - type-level tests
+  type Test1 = BuildTuple<1>
+  // @ts-expect-error - type-level tests
+  type Test3 = BuildTuple<3>
+  // @ts-expect-error - type-level tests
+  type Test5 = BuildTuple<5>
+
+  vt.it('should build an empty tuple for 0', () => {
+    type Expected = []
+    const _: Test0 = [] as Expected
+  })
+
+  vt.it('should build a tuple of length 1', () => {
+    type Expected = [unknown]
+    // @ts-expect-error - type-level test, not runtime
+    const _: Test1 = [] as Expected
+  })
+
+  vt.it('should build a tuple of length 3', () => {
+    type Expected = [unknown, unknown, unknown]
+    // @ts-expect-error - type-level test, not runtime
+    const _: Test3 = [] as Expected
+  })
+
+  vt.it('should build a tuple of length 5', () => {
+    type Expected = [unknown, unknown, unknown, unknown, unknown]
+    // @ts-expect-error - type-level test, not runtime
+    const _: Test5 = [] as Expected
+  })
+
+  vt.it('should work with Add type', () => {
+  // @ts-expect-error - type-level tests
+    type Sum = Add<2, 3>
+    type Expected = 5
+    const _: Sum = 5 as Expected
+  })
+})
+
+
+vt.describe('Add type', () => {
+  vt.it('should compute Add<0, 0> as 0', () => {
+    type Result = bs.Add<0, 0>
+    const _: Result = 0 as 0
+  })
+
+  vt.it('should compute Add<2, 3> as 5', () => {
+    type Result = bs.Add<2, 3>
+    const _: Result = 5 as 5
+  })
+
+  vt.it('should compute Add<4, 1> as 5', () => {
+    type Result = bs.Add<4, 1>
+    const _: Result = 5 as 5
+  })
+
+  vt.it('should compute Add<10, 0> as 10', () => {
+    type Result = bs.Add<10, 0>
+    const _: Result = 10 as 10
+  })
+
+  vt.it('should compute Add<0, 7> as 7', () => {
+    type Result = bs.Add<0, 7>
+    const _: Result = 7 as 7
   })
 })

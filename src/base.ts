@@ -13,7 +13,7 @@
  * @throws If `_step` is less than or equal to 0.
  * @throws If any argument is `NaN` or not finite.
  */
-export function range(_from: number, _to?: number, _step: number = 1): Array<number> {
+export function range(_from: number, _to?: number, _step: number = 1): number[] {
   if (_to === undefined)
     [_from, _to] = [0, _from] // If only one way
   if (Number.isNaN(_step) || !Number.isFinite(_step) || _step <= 0)
@@ -49,40 +49,6 @@ export const enum ANSI_ESC {
   CYAN = "\u001b[36m",
   WHITE = "\u001b[37m"
 }
-export class Out {
-  silence: boolean = false
-  prefix: string
-  suffix: string
-  printer: (... args: unknown[]) => void
-
-  /**
-   * Creates an instance of the Out class for formatted console output.
-   *
-   * @param _prefix - A string to prefix each output message.
-   * @param _suffix - A string to suffix each output message.
-   * @param _color - An optional ANSI escape code to color the prefix and suffix.
-   * @param _printer - A custom printing function (defaults to console.log).
-   */
-  constructor(_prefix: string = "", _suffix: string = "", _color?: ANSI_ESC, _printer: (... args: unknown[]) => void = console.log) {
-    this.printer = _printer
-    this.prefix = _prefix
-    this.suffix = _suffix
-    if (_color) {
-      this.prefix = _color + this.prefix + ANSI_ESC.RESET
-      this.suffix = _color + this.suffix + ANSI_ESC.RESET
-    }
-  }
-
-  /**
-   * Prints a formatted message to the console with a timestamp, prefix, and suffix.
-   *
-   * @param _args - The arguments to be printed.
-   */
-  print(..._args: unknown[]) {
-    if (!this.silence)
-      this.printer(`[${new Date().toISOString()}]${this.prefix}${this.suffix}`, ..._args)
-  }
-}
 
 
 
@@ -96,8 +62,8 @@ export class Out {
  * @returns The result of the function if it succeeds within the allowed attempts.
  * @throws If the maximum number of attempts is exceeded or if the operation is aborted.
  */
-export async function retry<T>(_fn: ()=>T, _maxAttempts: number, _callbackOnError?: ()=>unknown, _abortSignal?: AbortSignal) {
-  while (--_maxAttempts >= 0 && !(_abortSignal?.aborted ?? false)) {
+export async function retry<T>(_fn: () => T, _maxAttempts: number, _callbackOnError?: () => unknown, _abortSignal?: AbortSignal) {
+  while (--_maxAttempts >= 0 && !(_abortSignal?.aborted ?? false))
     try {
       return await _fn()
     } catch (err: unknown) {
@@ -105,7 +71,6 @@ export async function retry<T>(_fn: ()=>T, _maxAttempts: number, _callbackOnErro
         throw err
       await _callbackOnError?.()
     }
-  }
   if (_maxAttempts < 0)
     throw new Error("Max attempts exceeded")
   else
@@ -123,7 +88,7 @@ export async function retry<T>(_fn: ()=>T, _maxAttempts: number, _callbackOnErro
  */
 export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<void> {
   if (_abortSignal?.aborted)
-    return Promise.reject(new Error("Sleep aborted"))
+    return Promise.reject(new Error("Sleep aborted before start"))
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       _abortSignal?.removeEventListener("abort", onAbort)
@@ -133,7 +98,7 @@ export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<vo
     function onAbort() {
       clearTimeout(timeout)
       _abortSignal?.removeEventListener("abort", onAbort)
-      reject(new Error("Sleep aborted"))
+      reject(new Error("Sleep aborted during wait"))
     }
     _abortSignal?.addEventListener("abort", onAbort, { once: true })
   })

@@ -6,9 +6,7 @@
 export function once_ready(): Promise<void> {
   if (document.readyState === "complete" || document.readyState === "interactive")
     return Promise.resolve()
-  return new Promise((resolve) => {
-    document.addEventListener("DOMContentLoaded", () => resolve(), { once: true })
-  })
+  return new Promise((resolve) => document.addEventListener("DOMContentLoaded", () => resolve(), { once: true }))
 }
 
 
@@ -39,7 +37,7 @@ export function by_id<T extends HTMLElement>(_id: string, _elementType?: new () 
  * @returns An array of HTML elements with the specified class name and type.
  * @throws Will throw an error if any element does not match the expected type.
  */
-export function by_class<T extends HTMLElement>(_className: string, _elementType?: new() => T): T[] {
+export function by_class<T extends HTMLElement>(_className: string, _elementType?: new () => T): T[] {
   return Array.from(document.getElementsByClassName(_className)).map((element, index) => {
     const typeCtor = _elementType ?? HTMLElement
     if (!(element instanceof typeCtor))
