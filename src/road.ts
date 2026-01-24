@@ -13,13 +13,13 @@ import { on } from "node:events"
  * Represents a union type of default file system node constructors.
  * 
  * This type can be used to refer to any of the following node types:
- * - File
- * - Folder
- * - BlockDevice
- * - CharacterDevice
- * - SymbolicLink
- * - Fifo
- * - Socket
+ * - {@link File}
+ * - {@link Folder}
+ * - {@link BlockDevice}
+ * - {@link CharacterDevice}
+ * - {@link SymbolicLink}
+ * - {@link Fifo}
+ * - {@link Socket}
  *
  * Each member is referenced by its constructor type.
  */
@@ -27,15 +27,15 @@ export type road_t = typeof File | typeof Folder | typeof BlockDevice | typeof C
 /**
  * Synchronously determines the constructor type of a file system object at the given path.
  *
- * If a string path is provided, it retrieves the mode using `fs.lstatSync`.
+ * If a string path is provided, it retrieves the mode using {@link fs.lstatSync}.
  * If a numeric mode is provided, it uses that directly.
- * The function then returns the corresponding `road_t` type based on the mode.
+ * The function then returns the corresponding {@link road_t} type based on the mode.
  *
  * @param _pathorMode - The file system path (string) or mode (number) to evaluate.
- * @returns The type of the file system object as a `road_t`.
+ * @returns The type of the file system object as a {@link road_t}.
  * @throws {Error} If the mode does not match any known file system object type.
  */
-export function road_type(_pathorMode: string | number): road_t {
+export function roadType(_pathorMode: string | number): road_t {
   const mode = typeof _pathorMode === 'string' ? fs.lstatSync(_pathorMode).mode : _pathorMode
   switch (mode & fs.constants.S_IFMT) {
     case fs.constants.S_IFREG: return File
@@ -61,32 +61,30 @@ export function road_type(_pathorMode: string | number): road_t {
  * - The class verifies the existence and type of the path upon construction.
  * - Use {@link Road.factory} or {@link Road.factory_sync} to instantiate the correct subclass.
  * 
- * @property {string} pointsTo - The target path that this node points to.
- * @property {boolean} mutable - Indicates if the underlying entry can be modified (sometimes overridden by subclasses if necessary).
+ * @property {string} {@link pointsTo} - The target path that this node points to.
+ * @property {boolean} {@link mutable} - Indicates if the underlying entry can be modified (sometimes overridden by subclasses if necessary).
  * 
- * @method assert_mutable_sync - Asserts synchronously that the path is mutable.
- * @method assert_mutable - Asserts asynchronously that the path is mutable.
- * @method exists_sync - Checks synchronously if the path exists and matches the expected type.
- * @method exists - Checks asynchronously if the path exists and matches the expected type.
- * @method stats_sync - Gets synchronous file statistics.
- * @method stats - Gets asynchronous file statistics.
- * @method depth - Returns the depth of the path in the filesystem hierarchy.
- * @method parent - Returns the parent folder as a {@link Folder}.
- * @method ancestors - Returns all ancestor folders up to the root.
- * @method name - Returns the basename of the path.
- * @method accessible_sync - Checks synchronously if the path is accessible with the given mode.
- * @method accessible - Checks asynchronously if the path is accessible with the given mode.
- * @method until_accessible - Waits asynchronously until the path becomes accessible, with abort and callback support.
- * @method on_change - Watches for changes to the path, with abort and callback support.
+ * @method {@link exists_sync} - Checks synchronously if the path exists and matches the expected type.
+ * @method {@link exists} - Checks asynchronously if the path exists and matches the expected type.
+ * @method {@link stats_sync} - Gets synchronous file statistics.
+ * @method {@link stats} - Gets asynchronous file statistics.
+ * @method {@link depth} - Returns the depth of the path in the filesystem hierarchy.
+ * @method {@link parent} - Returns the parent folder as a {@link Folder}.
+ * @method {@link ancestors} - Returns all ancestor folders up to the root.
+ * @method {@link name} - Returns the basename of the path.
+ * @method {@link accessible_sync} - Checks synchronously if the path is accessible with the given mode.
+ * @method {@link accessible} - Checks asynchronously if the path is accessible with the given mode.
+ * @method {@link until_accessible} - Waits asynchronously until the path becomes accessible, with abort and callback support.
+ * @method {@link on_change} - Watches for changes to the path, with abort and callback support.
  * 
- * @abstractmethod delete_sync - Synchronously deletes the path.
- * @abstractmethod delete - Asynchronously deletes the path.
- * @abstractmethod move_sync - Synchronously moves the path into a folder.
- * @abstractmethod move - Asynchronously moves the path into a folder.
- * @abstractmethod copy_sync - Synchronously copies the path into a folder.
- * @abstractmethod copy - Asynchronously copies the path into a folder.
- * @abstractmethod rename_sync - Synchronously renames the path.
- * @abstractmethod rename - Asynchronously renames the path.
+ * @abstractmethod {@link delete_sync} - Synchronously deletes the path.
+ * @abstractmethod {@link delete} - Asynchronously deletes the path.
+ * @abstractmethod {@link move_sync} - Synchronously moves the path into a folder.
+ * @abstractmethod {@link move} - Asynchronously moves the path into a folder.
+ * @abstractmethod {@link copy_sync} - Synchronously copies the path into a folder.
+ * @abstractmethod {@link copy} - Asynchronously copies the path into a folder.
+ * @abstractmethod {@link rename_sync} - Synchronously renames the path.
+ * @abstractmethod {@link rename} - Asynchronously renames the path.
  */
 export abstract class Road {
   /**
@@ -119,56 +117,46 @@ export abstract class Road {
   constructor(_lookFor: string) {
     fs.accessSync(_lookFor, fs.constants.F_OK)
     this.pointsTo = ph.resolve(_lookFor)
-    if (!(this instanceof road_type(this.isAt)))
+    if (!(this instanceof roadType(this.isAt)))
       throw new Error(`Type missmatch: Path '${this.isAt}' is not of constructed type ${this.constructor.name}`)
   }
   /**
-   * Asynchronously creates an instance of a `Road` subclass based on the provided file path.
+   * Asynchronously creates an instance of a {@link Road} subclass based on the provided file path.
    *
    * This factory method first checks if the specified file exists, determines the appropriate
-   * `Road` subclass constructor using the `road_type` function, and then returns a new instance
+   * {@link Road} subclass constructor using the {@link roadType} function, and then returns a new instance
    * of that subclass initialized with the given file path.
    *
-   * @param _lookFor - The file path to check and use for instantiating the `Road` subclass.
-   * @returns A promise that resolves to an instance of a `Road` subclass.
+   * @param _lookFor - The file path to check and use for instantiating the {@link Road} subclass.
+   * @returns A promise that resolves to an instance of a {@link Road} subclass.
    * @throws If the file does not exist or if instantiation fails.
    */
   static async factory(_lookFor: string): Promise<Road> {
     await fp.access(_lookFor, fs.constants.F_OK)
-    const roadCtor = road_type(_lookFor)
+    const roadCtor = roadType(_lookFor)
     return new roadCtor(_lookFor)
   }
   static factory_sync(_lookFor: string): Road {
     fs.accessSync(_lookFor, fs.constants.F_OK)
-    const roadCtor = road_type(_lookFor)
+    const roadCtor = roadType(_lookFor)
     return new roadCtor(_lookFor)
   }
 
   // Query methods (async and sync)
   /**
-   * Asserts that the current instance is mutable.
-   * 
-   * @throws {Error} Throws an error if the instance is marked as immutable.
-   * The error message includes the current path (`isAt`) for easier debugging.
-   */
-  assert_mutable(): void {
-    if (!this.mutable)
-      throw new Error(`Path at '${this.isAt}' is marked as immutable and shouldn't be modified`)
-  }
-  /**
-   * Checks synchronously whether the file or directory at the path specified by `this.isAt` exists,
-   * and verifies that the current instance is of the type returned by `road_type(this.isAt)`.
+   * Checks synchronously whether the file or directory at the path specified by {@link isAt} exists,
+   * and verifies that the current instance is of the type returned by {@link roadType}.
    *
    * @returns {boolean} `true` if the path exists and the instance matches the type; otherwise, `false`.
    */
   exists_sync(): boolean {
-    return fs.existsSync(this.isAt) && (this instanceof road_type(this.isAt))
+    return fs.existsSync(this.isAt) && (this instanceof roadType(this.isAt))
   }
   /**
    * Asynchronously checks if the file or directory at the specified path exists.
    *
    * Attempts to access the path using the file system's access method. If the path exists,
-   * it further checks if the current instance is of the type returned by `road_type(this.isAt)`.
+   * it further checks if the current instance is of the type returned by {@link roadType}.
    * Returns `true` if both conditions are met, otherwise returns `false`.
    *
    * @returns {Promise<boolean>} A promise that resolves to `true` if the path exists and the instance type matches, or `false` otherwise.
@@ -176,13 +164,13 @@ export abstract class Road {
   async exists(): Promise<boolean> {
     try {
       await fp.access(this.isAt, fs.constants.F_OK)
-      return this instanceof road_type(this.isAt)
+      return this instanceof roadType(this.isAt)
     } catch {
       return false
     }
   }
   /**
-   * Synchronously retrieves the file system statistics for the path specified by `this.isAt`.
+   * Synchronously retrieves the file system statistics for the path specified by {@link isAt}.
    *
    * @returns {fs.Stats} The file system statistics object for the current path.
    * @throws {Error} If the path does not exist or an I/O error occurs.
@@ -193,7 +181,7 @@ export abstract class Road {
   /**
    * Asynchronously retrieves the file system statistics for the current node.
    *
-   * @returns A promise that resolves to an `fs.Stats` object containing information about the file or directory at the current path.
+   * @returns A promise that resolves to an {@link fs.Stats} object containing information about the file or directory at the current path.
    */
   async stats(): Promise<fs.Stats> {
     return fp.lstat(this.isAt)
@@ -202,7 +190,7 @@ export abstract class Road {
   // Path methods
   /**
    * Calculates the depth of the current node based on the number of path separators
-   * in the `isAt` property. The depth is determined by splitting the path using the
+   * in the {@link isAt} property. The depth is determined by splitting the path using the
    * platform-specific separator and subtracting one from the resulting segments.
    *
    * @returns {number} The depth of the node in the path hierarchy.
@@ -213,14 +201,14 @@ export abstract class Road {
   /**
    * Returns the parent folder of the current node.
    *
-   * @returns {Folder} A new `Folder` instance representing the parent directory of the current node.
+   * @returns {Folder} A new {@link Folder} instance representing the parent directory of the current node.
    */
   parent(): Folder {
     return new Folder(ph.dirname(this.isAt))
   }
   /**
    * Returns an array of ancestor folders for the current folder, traversing up the parent chain.
-   * The traversal continues until a folder is reached whose `isAt` property is equal to its parent's `isAt` property,
+   * The traversal continues until a folder is reached whose {@link isAt} property is equal to its parent's {@link isAt} property,
    * which is assumed to be the root or a sentinel node.
    *
    * @returns {Folder[]} An array of ancestor folders, starting from the immediate parent up to (but not including) the root.

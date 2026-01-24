@@ -8,19 +8,20 @@ A utility library for TypeScript/Node.js
 
 #
 ### What is this?
-A combination of 3 files to handle TS/JS by itself, Node and DOM (for web) that proivdes functions, classes and whatnot to reduce boilerplate for common operations.
+A combination of files to handle TS/JS by itself, Node and DOM (for web) that provides functions, classes and whatnot to reduce boilerplate for common operations.
 
 
 #
 ### How to use
 ```sh
-npm install --save-dev git+https://github.com/clerkburk/ts-instrumentality.git
+npm install git+https://github.com/clerkburk/ts-instrumentality.git
 ```
 then
 ```ts
-import * as isb from "ts-instrumentality/base" // Instrumentality Base
-import * as isn from "ts-instrumentality/node" // Instrumentality Node (if available)
-import * as isd from "ts-instrumentality/dom" // Instrumentality Browser (if available)
+import * as isb from "ts-instrumentality" // Base
+import * as isn from "ts-instrumentality/dom" // Browser (if available)
+import * as isd from "ts-instrumentality/road" // Filesystem using Node.js (if available)
+import * as isf from "ts-instrumentality/serv" // HTTP2 Server using Node.js (if available)
 ```
 thats literally it
 
