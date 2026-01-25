@@ -64,6 +64,7 @@ export function roadType(_pathorMode: string | number): road_t {
  * @property {string} {@link pointsTo} - The target path that this node points to.
  * @property {boolean} {@link mutable} - Indicates if the underlying entry can be modified (sometimes overridden by subclasses if necessary).
  * 
+ * @method {@link assert_mutable} - Asserts that the node is mutable, throwing an error if not.
  * @method {@link exists_sync} - Checks synchronously if the path exists and matches the expected type.
  * @method {@link exists} - Checks asynchronously if the path exists and matches the expected type.
  * @method {@link stats_sync} - Gets synchronous file statistics.
@@ -143,6 +144,15 @@ export abstract class Road {
   }
 
   // Query methods (async and sync)
+  /**
+   * Asserts that the current node is mutable.
+   * 
+   * @throws {Error} If the node is not mutable.
+   */
+  assert_mutable(): void {
+    if (!this.mutable)
+      throw new Error(`Mutability attempt failed: Node at path '${this.isAt}' can't be modified by this instance (unrelated to OS permissions).`)
+  }
   /**
    * Checks synchronously whether the file or directory at the path specified by {@link isAt} exists,
    * and verifies that the current instance is of the type returned by {@link roadType}.
