@@ -1337,10 +1337,10 @@ export class LiveFile extends File implements AsyncDisposable, Disposable {
     })()
   }
   update_sync(): void {
-    this.lastReadContent = this.read_bytes_sync()
+    this.lastReadContent = this.read_sync()
   }
   async update(): Promise<void> {
-    this.lastReadContent = await this.read_bytes()
+    this.lastReadContent = await this.read()
   }
   [Symbol.dispose](): void {
     this.abortController.abort()
