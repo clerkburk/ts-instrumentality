@@ -4,6 +4,7 @@ import * as fp from "node:fs/promises"
 import * as ph from "node:path"
 import * as os from "node:os"
 import { on } from "node:events"
+import * as inb from "./base.js"
 
 
 
@@ -54,15 +55,22 @@ export function roadType(_pathorMode: string | number): road_t {
 /**
  * Abstract base class representing a filesystem path (file or folder).
  * Provides methods for querying, accessing, and manipulating the path.
+ * Think of it as a 
  * 
  * Subclasses must implement positional methods for deleting, moving, copying, and renaming.
  * 
  * @remarks
- * - The class verifies the existence and type of the path upon construction.
- * - Use {@link Road.factory} or {@link Road.factory_sync} to instantiate the correct subclass.
+ * Road provides an ergonomic, object-oriented interface over Node.js's filesystem APIs.
+ * While there are many methods that internally do checks to ensure correctness,
+ * performance considerations have been made to minimize unnecessary overhead.
+ * It does **not** guarantee safety against external changes to the filesystem,
+ * but aims to provide a convenient abstraction for common filesystem operations.
  * 
  * @property {string} {@link pointsTo} - The target path that this node points to.
  * @property {boolean} {@link mutable} - Indicates if the underlying entry can be modified (sometimes overridden by subclasses if necessary).
+ * 
+ * @staticmethod {@link factory} - Asynchronously creates an instance of the appropriate {@link Road} subclass for the given path.
+ * @staticmethod {@link factory_sync} - Synchronously creates an instance of the appropriate {@link Road} subclass for the given path.
  * 
  * @method {@link assert_mutable} - Asserts that the node is mutable, throwing an error if not.
  * @method {@link exists_sync} - Checks synchronously if the path exists and matches the expected type.
@@ -94,8 +102,8 @@ export abstract class Road {
    */
   protected pointsTo: string
   /**
-   * Gets the location that this node points to.
-   * @returns The string representing the location this node points to.
+   * Gets the immutable string representing the location this node points to.
+   * @returns The path string that this node points to.
    */
   get isAt(): string { return this.pointsTo }
   /**
@@ -144,6 +152,29 @@ export abstract class Road {
   }
 
   // Query methods (async and sync)
+  /**
+   * Verifies synchronously that the path exists and that the current instance matches the expected type.
+   * 
+   * @returns {boolean} `true` if the path exists and the instance type matches; otherwise, `false`.
+   */
+  verify_sync(): boolean {
+    if (!fs.existsSync(this.isAt))
+      return false
+    return this instanceof roadType(this.isAt)
+  }
+  /**
+   * Asynchronously verifies that the path exists and that the current instance matches the expected type.
+   * 
+   * @returns {Promise<boolean>} A promise that resolves to `true` if the path exists and the instance type matches; otherwise, `false`.
+   */
+  async verify(): Promise<boolean> {
+    try {
+      await fp.access(this.isAt, fs.constants.F_OK)
+      return this instanceof roadType(this.isAt)
+    } catch {
+      return false
+    }
+  }
   /**
    * Asserts that the current node is mutable.
    * 
@@ -352,34 +383,34 @@ export abstract class Road {
  * for reading, writing, appending, copying, moving, renaming, and deleting file content.
  * 
  * Supports both text and binary operations, as well as streaming interfaces for reading
- * and writing. The `File` class extends `Road` and is designed to be used in conjunction
- * with the `Folder` class for file management tasks.
+ * and writing. The `File` class extends {@link Road} and is designed to be used in conjunction
+ * with the {@link Folder} class for file management tasks.
  * 
  * Methods are provided for both synchronous and asynchronous usage, allowing flexibility
  * depending on the application's requirements.
  * 
- * @method `create`: Asynchronously creates a file at the specified path if it does not exist.
- * @method `create_sync`: Synchronously creates a file at the specified path if it does not exist.
- * @method `read_text_sync`: Synchronously reads the file content as a UTF-8 string.
- * @method `read_text`: Asynchronously reads the file content as a UTF-8 string.
- * @method `it_lines`: Asynchronously iterates over the lines of the file.
- * @method `write_text_sync`: Synchronously writes a UTF-8 string to the file.
- * @method `write_text`: Asynchronously writes a UTF-8 string to the file.
- * @method `append_text_sync`: Synchronously appends a UTF-8 string to the file.
- * @method `append_text`: Asynchronously appends a UTF-8 string to the file.
- * @method `read_bytes_sync`: Synchronously reads the file content as a Buffer.
- * @method `read_bytes`: Asynchronously reads the file content as a Buffer.
- * @method `it_bytes_sync`: Synchronously iterates over the file content in chunks.
- * @method `it_bytes`: Asynchronously iterates over the file content in chunks.
- * @method `write_bytes_sync`: Synchronously writes a Buffer to the file.
- * @method `write_bytes`: Asynchronously writes a Buffer to the file.
- * @method `append_bytes_sync`: Synchronously appends a Buffer to the file.
- * @method `append_bytes`: Asynchronously appends a Buffer to the file.
- * @method `it_bytes_writeable_sync`: Synchronously provides a writable stream for writing file content in chunks.
- * @method `it_bytes_writeable`: Asynchronously provides a writable stream for writing file content in chunks.
- * @method `create_read_stream`: Creates a readable stream for the file.
- * @method `create_write_stream`: Creates a writable stream for the file.
- * @method `extension`: Returns the file extension.
+ * @method {@link create} - Asynchronously creates a file at the specified path if it does not exist.
+ * @method {@link create_sync} - Synchronously creates a file at the specified path if it does not exist.
+ * @method {@link read_text_sync} - Synchronously reads the file content as a UTF-8 string.
+ * @method {@link read_text} - Asynchronously reads the file content as a UTF-8 string.
+ * @method {@link it_lines} - Asynchronously iterates over the lines of the file.
+ * @method {@link write_text_sync} - Synchronously writes a UTF-8 string to the file.
+ * @method {@link write_text} - Asynchronously writes a UTF-8 string to the file.
+ * @method {@link append_text_sync} - Synchronously appends a UTF-8 string to the file.
+ * @method {@link append_text} - Asynchronously appends a UTF-8 string to the file.
+ * @method {@link read_bytes_sync} - Synchronously reads the file content as a Buffer.
+ * @method {@link read_bytes} - Asynchronously reads the file content as a Buffer.
+ * @method {@link it_bytes_sync} - Synchronously iterates over the file content in chunks.
+ * @method {@link it_bytes} - Asynchronously iterates over the file content in chunks.
+ * @method {@link write_bytes_sync} - Synchronously writes a Buffer to the file.
+ * @method {@link write_bytes} - Asynchronously writes a Buffer to the file.
+ * @method {@link append_bytes_sync} - Synchronously appends a Buffer to the file.
+ * @method {@link append_bytes} - Asynchronously appends a Buffer to the file.
+ * @method {@link it_bytes_writeable_sync} - Synchronously provides a writable stream for writing file content in chunks.
+ * @method {@link it_bytes_writeable} - Asynchronously provides a writable stream for writing file content in chunks.
+ * @method {@link create_read_stream} - Creates a readable stream for the file.
+ * @method {@link create_write_stream} - Creates a writable stream for the file.
+ * @method {@link extension} - Returns the file extension.
  * 
  * @remarks
  * - The file path is managed internally and can be updated by operations such as move or rename.
@@ -431,161 +462,64 @@ export class File extends Road {
     return new File(_at)
   }
 
-  // Content as text manipulation
+  // Reading
+  /**
+   * Reads the contents of the file at the path specified by `this.isAt` synchronously and returns it a Buffer.
+   * 
+   * @returns {Buffer} The contents of the file as a Buffer.
+   * @throws {Error} If the file cannot be read, an error is thrown.
+   */
+  read_sync(): Buffer
   /**
    * Reads the contents of the file at the path specified by `this.isAt` synchronously and returns it as an encoded string.
    *
-   * @param _encoding - The character encoding to use (default is `"utf-8"`).
+   * @param _encoding - The character encoding to use.
    * @param _flag - The file system flag.
    * @returns {string} The contents of the file as a string.
    * @throws {Error} If the file cannot be read, an error is thrown.
    */
-  read_sync(_encoding: BufferEncoding = 'utf-8', _flag?: string): string {
-    return fs.readFileSync(this.isAt, { encoding: _encoding, flag: _flag })
+  read_sync(_encoding: BufferEncoding, _flag?: string): string
+  read_sync(_encoding?: BufferEncoding, _flag?: string): Buffer | string {
+    if (_encoding)
+      return fs.readFileSync(this.isAt, { encoding: _encoding, flag: _flag })
+    else
+      return fs.readFileSync(this.isAt)
   }
+  /**
+   * Asynchronously reads the contents of the file at the path specified by `this.isAt` and returns it as a Buffer.
+   * 
+   * @returns {Promise<Buffer>} A promise that resolves to the contents of the file as a Buffer.
+   * @throws If the file cannot be read, the promise is rejected with an error.
+   */
+  async read(): Promise<Buffer>
   /**
    * Asynchronously reads the contents of the file at the path specified by `this.isAt` and returns it as an encoded string.
    * 
-   * @param _encoding - The character encoding to use (default is `"utf-8"`).
+   * @param _encoding - The character encoding to use.
    * @param _flag - The file system flag.
    * @returns A promise that resolves to the contents of the file as a string.
    * @throws If the file cannot be read, the promise is rejected with an error.
    */
-  async read(_encoding: BufferEncoding = 'utf-8', _flag?: string): Promise<string> {
-    return fp.readFile(this.isAt, { encoding: _encoding, flag: _flag })
+  async read(_encoding: BufferEncoding, _flag?: string): Promise<string>
+  async read(_encoding?: BufferEncoding, _flag?: string): Promise<Buffer | string> {
+    if (_encoding)
+      return fp.readFile(this.isAt, { encoding: _encoding, flag: _flag })
+    else
+      return fp.readFile(this.isAt)
   }
   /**
-   * Asynchronously iterates over the lines of a file specified by `this.isAt` and yields each line as an encoded string.
+   * Asynchronously iterates over the bytes of a file specified by `this.isAt` and yields each chunk as a Buffer.
    * 
-   * @param _encoding - The character encoding to use (default is `"utf-8"`).
-   * @yields {Promise<string>} A promise that resolves to each line of the file as a string.
+   * @param _chunkSize - The size of each chunk to read from the file (default is 64KB).
+   * @param _flags - The file system flags to use when opening the file.
+   * @yields {Promise<Buffer>} A promise that resolves to each chunk of bytes read from the file.
    * @throws {Error} If the file cannot be read, an error is thrown.
    */
-  async *it_lines(_encoding: BufferEncoding = 'utf-8', _flags?: string): AsyncIterableIterator<string> {
-    const readStream = fs.createReadStream(this.isAt, { encoding: _encoding, flags: _flags })
-    const rlInterface = rl.createInterface({ input: readStream, crlfDelay: Infinity })
+  async *it_buff(_chunkSize: number = 64 * 1024, _flags?: string): AsyncIterableIterator<Buffer> {
+    const fd = await fp.open(this.isAt, _flags)
     try {
-      for await (const line of rlInterface)
-        yield line
-    } finally {
-      rlInterface.close()
-      readStream.close()
-    }
-  }
-  /**
-   * Writes the provided text content synchronously to the file at the current path.
-   *
-   * This method first checks if the node is mutable by calling `assert_mutable()`.
-   * If the node is mutable, it writes the given string to the file specified by `this.isAt`
-   * using the given encoding. If the file does not exist, it will be created.
-   *
-   * @param _content - The text content to write to the file.
-   * @param _encoding - The character encoding to use (default is `"utf-8"`).
-   * @param _flag - The file system flag.
-   * @throws {Error} If the node is not mutable or if the write operation fails.
-   */
-  write_sync(_content: string, _encoding: BufferEncoding = 'utf-8', _flag?: string): void {
-    this.assert_mutable()
-    fs.writeFileSync(this.isAt, _content, { encoding: _encoding, flag: _flag })
-  }
-  /**
-   * Writes the provided text content to the file at the current node's path.
-   *
-   * @param _content - The string content to be written to the file.
-   * @param _encoding - The character encoding to use (default is `"utf-8"`).
-   * @param _flag - The file system flag.
-   * @returns A promise that resolves when the write operation is complete.
-   * @throws If the node is not mutable.
-   */
-  async write(_content: string, _encoding: BufferEncoding = 'utf-8', _flag?: string): Promise<void> {
-    this.assert_mutable()
-    return fp.writeFile(this.isAt, _content, { encoding: _encoding, flag: _flag })
-  }
-  /**
-   * Appends the specified text content synchronously to the file at the current path.
-   *
-   * This method first checks if the node is mutable by calling `assert_mutable()`.
-   * If the node is mutable, it appends the provided `_content` string to the file
-   * located at `this.isAt` using the specified encoding and flag.
-   *
-   * @param _content - The text content to append to the file.
-   * @param _encoding - The character encoding to use (default is `"utf-8"`).
-   * @param _flag - The file system flag.
-   * @throws Will throw an error if the node is not mutable or if the file operation fails.
-   */
-  append_sync(_content: string, _encoding: BufferEncoding = 'utf-8', _flag?: string): void {
-    this.assert_mutable()
-    fs.appendFileSync(this.isAt, _content, { encoding: _encoding, flag: _flag })
-  }
-  /**
-   * Appends the specified text content to the file at the current path.
-   *
-   * @param _content - The text content to append to the file.
-   * @param _encoding - The character encoding to use (default is `"utf-8"`).
-   * @param _flag - The file system flag.
-   * @returns A promise that resolves when the operation is complete.
-   * @throws If the node is not mutable.
-   */
-  async append(_content: string, _encoding: BufferEncoding = 'utf-8', _flag?: string): Promise<void> {
-    this.assert_mutable()
-    return fp.appendFile(this.isAt, _content, { encoding: _encoding, flag: _flag })
-  }
-
-  // Content as binary reading/manipulation
-  /**
-   * Reads the contents of the file at the path specified by `this.isAt` synchronously and returns it as a Buffer.
-   *
-   * @returns {Buffer} The contents of the file as a Buffer.
-   * @throws {Error} If the file cannot be read, an error is thrown.
-   */
-  read_bytes_sync(): Buffer {
-    return fs.readFileSync(this.isAt)
-  }
-  async read_bytes(): Promise<Buffer> {
-    return fp.readFile(this.isAt)
-  }
-  /**
-   * Synchronously reads the contents of a file in fixed-size chunks and yields each chunk as a Buffer.
-   *
-   * @param _chunkSize - The size (in bytes) of each chunk to read from the file. Defaults to 1024 bytes.
-   * @yields {Buffer} A Buffer containing the bytes read from the file for each chunk.
-   * @throws Will throw an error if the file cannot be opened or read.
-   *
-   * @example
-   * for (const chunk of node.it_bytes_sync(4096)) {
-   *   // Process each chunk
-   * }
-   */
-  *it_bytes_sync(_chunkSize: number = 1024): IterableIterator<Buffer> {
-    const fd = fs.openSync(this.isAt, 'r')
-    const buffer = Buffer.alloc(_chunkSize)
-    let bytesRead: number
-    try {
-      do {
-        bytesRead = fs.readSync(fd, buffer, 0, _chunkSize, null)
-        if (bytesRead > 0)
-          yield buffer.subarray(0, bytesRead)
-      } while (bytesRead === _chunkSize)
-    } finally {
-      fs.closeSync(fd)
-    }
-  }
-  /**
-   * Asynchronously iterates over the contents of a file in chunks of the specified size, yielding each chunk as a Buffer.
-   *
-   * @param _chunkSize - The size (in bytes) of each chunk to read from the file. Defaults to 1024 bytes.
-   * @returns An async iterable iterator that yields Buffer objects containing the bytes read from the file.
-   *
-   * @remarks
-   * - Opens the file at `this.isAt` for reading.
-   * - Yields each chunk of data until the end of the file is reached.
-   * - Ensures the file descriptor is properly closed after iteration, even if an error occurs.
-   */
-  async *it_bytes(_chunkSize: number = 1024): AsyncIterableIterator<Buffer> {
-    const fd = await fp.open(this.isAt, 'r')
-    const buffer = Buffer.alloc(_chunkSize)
-    let bytesRead: number
-    try {
+      const buffer = Buffer.alloc(_chunkSize)
+      let bytesRead: number
       do {
         const readResult = await fd.read(buffer, 0, _chunkSize, null)
         bytesRead = readResult.bytesRead
@@ -597,47 +531,75 @@ export class File extends Road {
     }
   }
   /**
-   * Synchronously writes the provided buffer content to the file at the current path.
-   *
-   * @param _content - The buffer containing the data to write.
-   * @throws {Error} If the node is not mutable or if the write operation fails.
+   * Asynchronously iterates over the lines of a file specified by `this.isAt` and yields each line as an encoded string.
+   * 
+   * @param _encoding - The character encoding to use.
+   * @yields {Promise<string>} A promise that resolves to each line of the file as a string.
+   * @throws {Error} If the file cannot be read, an error is thrown.
    */
-  write_bytes_sync(_content: Buffer): void {
+  async *it_lines(_encoding: BufferEncoding = 'utf-8', _flags?: string): AsyncIterableIterator<string> {
+    const readStream = fs.createReadStream(this.isAt, { encoding: _encoding, flags: _flags })
+    const rlInterface = rl.createInterface({ input: readStream, crlfDelay: Infinity })
+    try {
+      for await (const line of rlInterface)
+        yield line
+    } finally {
+      rlInterface.close()
+      readStream.destroy()
+    }
+  }
+
+  // Writing
+  /**
+   * Creates or overwrites the file at `this.isAt` with the provided data synchronously.
+   * 
+   * @param _data - The data (Buffer or string) to write to the file.
+   * @param _encoding - The character encoding to use if writing a string.
+   * @param _flag - The file system flag to use when writing the file.
+   * @throws {Error} If the node is not mutable or if the file cannot be written.
+   */
+  write_sync(_data: Buffer | string, _encoding?: BufferEncoding, _flag?: string): void {
     this.assert_mutable()
-    fs.writeFileSync(this.isAt, _content)
+    fs.writeFileSync(this.isAt, _data, { encoding: _encoding, flag: _flag })
   }
   /**
-   * Writes the provided buffer content to the file at the current path.
-   *
-   * @param _content - The buffer containing the bytes to write to the file.
-   * @returns A promise that resolves when the write operation is complete.
-   * @throws If the node is not mutable.
+   * Asynchronously creates or overwrites the file at `this.isAt` with the provided data.
+   * 
+   * @param _data - The data (Buffer or string) to write to the file.
+   * @param _encoding - The character encoding to use if writing a string.
+   * @param _flag - The file system flag to use when writing the file.
+   * @throws {Error} If the node is not mutable or if the file cannot be written.
    */
-  async write_bytes(_content: Buffer): Promise<void> {
+  async write(_data: Buffer | string, _encoding?: BufferEncoding, _flag?: string): Promise<void> {
     this.assert_mutable()
-    return fp.writeFile(this.isAt, _content)
+    return fp.writeFile(this.isAt, _data, { encoding: _encoding, flag: _flag })
   }
   /**
-   * Appends the given buffer content synchronously to the file at the current path.
-   *
-   * @param _content - The buffer containing bytes to append to the file.
-   * @throws Will throw an error if the node is not mutable or if the file operation fails.
+   * Appends the provided data to the file at `this.isAt` synchronously.
+   * 
+   * @param _data - The data (Buffer or string) to append to the file.
+   * @param _encoding - The character encoding to use if appending a string.
+   * @param _flag - The file system flag to use when appending to the file.
+   * @throws {Error} If the node is not mutable or if the file cannot be appended to.
    */
-  append_bytes_sync(_content: Buffer): void {
+  append_sync(_data: Buffer | string, _encoding?: BufferEncoding, _flag?: string): void {
     this.assert_mutable()
-    fs.appendFileSync(this.isAt, _content)
+    fs.appendFileSync(this.isAt, _data, { encoding: _encoding, flag: _flag })
   }
   /**
-   * Appends the given buffer content to the file at the current path.
-   *
-   * @param _content - The buffer containing bytes to append to the file.
-   * @returns A promise that resolves when the append operation is complete.
-   * @throws If the node is not mutable.
+   * Asynchronously appends the provided data to the file at `this.isAt`.
+   * 
+   * @param _data - The data (Buffer or string) to append to the file.
+   * @param _encoding - The character encoding to use if appending a string.
+   * @param _flag - The file system flag to use when appending to the file.
+   * @throws {Error} If the node is not mutable or if the file cannot be appended to.
    */
-  async append_bytes(_content: Buffer): Promise<void> {
+  async append(_data: Buffer | string, _encoding?: BufferEncoding, _flag?: string): Promise<void> {
     this.assert_mutable()
-    return fp.appendFile(this.isAt, _content)
+    return fp.appendFile(this.isAt, _data, { encoding: _encoding, flag: _flag })
   }
+
+  // Streaming
   /**
    * Creates and returns a readable file stream for the file located at `this.isAt`.
    *
