@@ -19,9 +19,8 @@ vt.afterAll(() => {
 function createTestFile(name: string, content: string = ''): string {
   const filePath = path.join(tmpDir, name)
   const dir = path.dirname(filePath)
-  if (!fs.existsSync(dir)) {
+  if (!fs.existsSync(dir))
     fs.mkdirSync(dir, { recursive: true })
-  }
   fs.writeFileSync(filePath, content)
   return filePath
 }

@@ -16,12 +16,10 @@
 export function range(_from: number, _to?: number, _step: number = 1): number[] {
   if (_to === undefined)
     [_from, _to] = [0, _from] // If only one way
-  if (Number.isNaN(_step) || !Number.isFinite(_step) || _step <= 0)
-    throw new Error("_step invalid must be > 0 (swap _from and _to if you want reverse counting)")
-  if (Number.isNaN(_from) || Number.isNaN(_to) || Number.isNaN(_step))
-    throw new Error("can't handle NaN as value")
   if (!Number.isFinite(_from) || !Number.isFinite(_to) || !Number.isFinite(_step))
-    throw new Error("can't handle infite as value")
+    throw new Error("Arguments must be finite numbers")
+  if (_step <= 0)
+    throw new Error("_step must be greater than 0")
   if (_from < _to)
     return Array.from({length: Math.ceil((_to - _from) / _step)}, (_, i) => _from + i * _step)
   else if (_from > _to)
@@ -55,21 +53,21 @@ export const enum ANSI_ESC {
 /**
  * Retries a function multiple times with optional error handling and abort signal.
  *
- * @param _fn - The function to be retried. Can be synchronous or return a Promise.
+ * @param _fn - The function to be retried.
  * @param _maxAttempts - The maximum number of attempts to execute the function.
- * @param _callbackOnError - An optional callback function to be executed after each failed attempt.
- * @param _abortSignal - An optional AbortSignal to abort the retry process.
+ * @param _cbErr - An optional callback function to be executed after each failed attempt.
+ * @param _abs - An optional AbortSignal to abort the retry process.
  * @returns The result of the function if it succeeds within the allowed attempts.
  * @throws If the maximum number of attempts is exceeded or if the operation is aborted.
  */
-export async function retry<T>(_fn: () => T, _maxAttempts: number, _callbackOnError?: () => unknown, _abortSignal?: AbortSignal) {
-  while (--_maxAttempts >= 0 && !(_abortSignal?.aborted ?? false))
+export async function retry<T>(_fn: () => T, _maxAttempts: number, _cbErr?: () => unknown, _abs?: AbortSignal): Promise<T> {
+  while (--_maxAttempts >= 0 && !(_abs?.aborted ?? false))
     try {
       return await _fn()
     } catch (err: unknown) {
       if (_maxAttempts === 0)
         throw err
-      await _callbackOnError?.()
+      await _cbErr?.()
     }
   if (_maxAttempts < 0)
     throw new Error("Max attempts exceeded")
@@ -83,48 +81,27 @@ export async function retry<T>(_fn: () => T, _maxAttempts: number, _callbackOnEr
  * Asynchronously sleeps for a specified duration, with optional abort signal support.
  *
  * @param _ms - The number of milliseconds to sleep.
- * @param _abortSignal - An optional AbortSignal to abort the sleep.
+ * @param _abs - An optional AbortSignal to abort the sleep.
  * @returns A Promise that resolves after the specified duration or rejects if aborted.
  */
-export async function sleep(_ms: number, _abortSignal?: AbortSignal): Promise<void> {
-  if (_abortSignal?.aborted)
+export async function sleep(_ms: number, _abs?: AbortSignal): Promise<void> {
+  if (_abs?.aborted)
     return Promise.reject(new Error("Sleep aborted before start"))
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      _abortSignal?.removeEventListener("abort", onAbort)
+      _abs?.removeEventListener("abort", onAbort)
       resolve()
     }, _ms)
 
     function onAbort() {
       clearTimeout(timeout)
-      _abortSignal?.removeEventListener("abort", onAbort)
+      _abs?.removeEventListener("abort", onAbort)
       reject(new Error("Sleep aborted during wait"))
     }
-    _abortSignal?.addEventListener("abort", onAbort, { once: true })
+    _abs?.addEventListener("abort", onAbort, { once: true })
   })
 }
 
-
-
-/**
- * Creates a scoped resource with a destructor that is called when disposed.
- *
- * @param _target - The target resource to be scoped.
- * @param _destructor - A function that will be called to clean up the resource.
- * @returns An object that implements the `Symbol.dispose` and `Symbol.asyncDispose` methods for resource cleanup.
- * @throws If the destructor function fails during disposal.
- */
-export function scoped(_target: unknown, _destructor: () => unknown) {
-  return new (class implements AsyncDisposable, Disposable {
-    constructor(public readonly target: unknown, public readonly destructor: () => unknown) {}
-    [Symbol.dispose]() {
-      this.destructor()
-    }
-    async [Symbol.asyncDispose]() {
-      await this.destructor()
-    }
-  })(_target, _destructor)
-}
 
 
 /**
@@ -133,9 +110,8 @@ export function scoped(_target: unknown, _destructor: () => unknown) {
  * @template N - The desired length of the tuple.
  * @template T - The tuple being built (used for recursion).
  */
-type BuildTuple<N extends number, T extends unknown[] = []> =
-  T['length'] extends N ? T : BuildTuple<N, [unknown, ...T]>
-
+type BuildTuple<N extends number, T extends number[] = []> =
+  T['length'] extends N ? T : BuildTuple<N, [...T, T['length']]>
 
 
 /**
@@ -146,3 +122,57 @@ type BuildTuple<N extends number, T extends unknown[] = []> =
  */
 export type Add<A extends number, B extends number> =
   [...BuildTuple<A>, ...BuildTuple<B>]['length']
+
+
+
+/**
+ * A benchmarking class that provides various time units for measuring elapsed time.
+ *
+ * The class starts a timer upon instantiation and provides properties to access the elapsed time in different units (milliseconds, seconds, minutes, etc.).
+ * The `round` method can be called to record the current elapsed time and restart the timer.
+ *
+ * @property {@link rounds} - An array that stores the recorded elapsed times from each round.
+ * @property {@link timer} - The initial timestamp when the benchmark was created or last reset.
+ * @method {@link round} - Records the current elapsed time and restarts the timer.
+ * @accessor {@link y} - Elapsed time in years (assuming 365.25 days per year).
+ * @accessor {@link mn} - Elapsed time in months (assuming 30.44 days per month).
+ * @accessor {@link w} - Elapsed time in weeks.
+ * @accessor {@link d} - Elapsed time in days.
+ * @accessor {@link h} - Elapsed time in hours.
+ * @accessor {@link m} - Elapsed time in minutes.
+ * @accessor {@link s} - Elapsed time in seconds.
+ * @accessor {@link ms} - Elapsed time in milliseconds.
+ * @accessor {@link μs} - Elapsed time in microseconds.
+ * @accessor {@link ns} - Elapsed time in nanoseconds.
+ * @accessor {@link ps} - Elapsed time in picoseconds.
+ */
+export class Benchmark {
+  /** An array that stores the recorded elapsed times from each round. */
+  rounds: number[] = []
+  /** Initializes the benchmark timer to the current time using `performance.now()`. */
+  timer = performance.now()
+  /** Records the current elapsed time and restarts the timer. */
+  round() { this.rounds.push(this.ms); this.timer = performance.now() }
+  /** Elapsed time in years (assuming 365.25 days per year). */
+  get y() { return this.mn / 12 }
+  /** Elapsed time in months (assuming 30.44 days per month). */
+  get mn() { return this.w / 4 }
+  /** Elapsed time in weeks. */
+  get w() { return this.d / 7 }
+  /** Elapsed time in days. */
+  get d() { return this.h / 24 }
+  /** Elapsed time in hours. */
+  get h() { return this.m / 60 }
+  /** Elapsed time in minutes. */
+  get m() { return this.s / 60 }
+  /** Elapsed time in seconds. */
+  get s() { return this.ms / 1000 }
+  /** Elapsed time in milliseconds. */
+  get ms() { return performance.now() - this.timer }
+  /** Elapsed time in microseconds. */
+  get μs() { return this.ms * 1e3 }
+  /** Elapsed time in nanoseconds. */
+  get ns() { return this.μs * 1e3 }
+  /** Elapsed time in picoseconds. */
+  get ps() { return this.ns * 1e3 }
+}

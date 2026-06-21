@@ -21,7 +21,6 @@ then
 import * as isb from "ts-instrumentality" // Base
 import * as isn from "ts-instrumentality/dom" // Browser (if available)
 import * as isd from "ts-instrumentality/road" // Filesystem using Node.js (if available)
-import * as isf from "ts-instrumentality/serv" // HTTP2 Server using Node.js (if available)
 ```
 thats literally it
 

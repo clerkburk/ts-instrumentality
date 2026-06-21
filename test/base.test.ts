@@ -182,7 +182,6 @@ vt.describe('bs.range()', () => {
       // This will likely have floating point precision problems
       const result = bs.range(0, 1, 0.1)
       // The last element might not be exactly 0.9 due to floating point math
-      console.log('Float precision test:', result)
       vt.expect(result.length).toBeGreaterThanOrEqual(10)
     })
   })
@@ -401,71 +400,6 @@ vt.describe('bs.sleep()', () => {
 
 
 
-vt.describe('bs.scoped()', () => {
-  vt.it('should call destructor on Symbol.dispose', () => {
-    const destructor = vt.vi.fn()
-    const obj = { foo: 1 }
-    const scopedObj = bs.scoped(obj, destructor)
-    vt.expect(typeof scopedObj[Symbol.dispose]).toBe('function')
-    scopedObj[Symbol.dispose]()
-    vt.expect(destructor).toHaveBeenCalledOnce()
-  })
-
-  vt.it('should call destructor on Symbol.asyncDispose (async)', async () => {
-    const destructor = vt.vi.fn().mockResolvedValue(undefined)
-    const obj = { foo: 2 }
-    const scopedObj = bs.scoped(obj, destructor)
-    vt.expect(typeof scopedObj[Symbol.asyncDispose]).toBe('function')
-    await scopedObj[Symbol.asyncDispose]()
-    vt.expect(destructor).toHaveBeenCalledOnce()
-  })
-
-  vt.it('should expose target property', () => {
-    const obj = { bar: 3 }
-    const scopedObj = bs.scoped(obj, () => {})
-    vt.expect(scopedObj.target).toBe(obj)
-  })
-
-  vt.it('should expose destructor property', () => {
-    const destructor = () => {}
-    const scopedObj = bs.scoped({}, destructor)
-    vt.expect(scopedObj.destructor).toBe(destructor)
-  })
-
-  vt.it('should throw if destructor throws (sync)', () => {
-    const scopedObj = bs.scoped({}, () => { throw new Error('fail') })
-    vt.expect(() => scopedObj[Symbol.dispose]()).toThrow('fail')
-  })
-
-  vt.it('should throw if destructor throws (async)', async () => {
-    const scopedObj = bs.scoped({}, async () => { throw new Error('fail-async') })
-    await vt.expect(scopedObj[Symbol.asyncDispose]()).rejects.toThrow('fail-async')
-  })
-
-  vt.it('should work with primitive targets', () => {
-    const scopedObj = bs.scoped(123, vt.vi.fn())
-    vt.expect(scopedObj.target).toBe(123)
-  })
-
-  vt.it('should allow multiple calls to Symbol.dispose', () => {
-    const destructor = vt.vi.fn()
-    const scopedObj = bs.scoped({}, destructor)
-    scopedObj[Symbol.dispose]()
-    scopedObj[Symbol.dispose]()
-    vt.expect(destructor).toHaveBeenCalledTimes(2)
-  })
-
-  vt.it('should allow multiple calls to Symbol.asyncDispose', async () => {
-    const destructor = vt.vi.fn().mockResolvedValue(undefined)
-    const scopedObj = bs.scoped({}, destructor)
-    await scopedObj[Symbol.asyncDispose]()
-    await scopedObj[Symbol.asyncDispose]()
-    vt.expect(destructor).toHaveBeenCalledTimes(2)
-  })
-})
-
-
-
 vt.describe('bs.sleep()', () => {
   vt.it('resolves after the specified time', async () => {
     const start = Date.now()
@@ -521,77 +455,5 @@ vt.describe('bs.sleep()', () => {
 
   vt.it('does not throw if no AbortSignal is provided', async () => {
     await vt.expect(bs.sleep(5)).resolves.toBeUndefined()
-  })
-})
-
-
-
-
-vt.describe('BuildTuple type', () => {
-  // @ts-expect-error - type-level tests
-  type Test0 = BuildTuple<0>
-  // @ts-expect-error - type-level tests
-  type Test1 = BuildTuple<1>
-  // @ts-expect-error - type-level tests
-  type Test3 = BuildTuple<3>
-  // @ts-expect-error - type-level tests
-  type Test5 = BuildTuple<5>
-
-  vt.it('should build an empty tuple for 0', () => {
-    type Expected = []
-    const _: Test0 = [] as Expected
-  })
-
-  vt.it('should build a tuple of length 1', () => {
-    type Expected = [unknown]
-    // @ts-expect-error - type-level test, not runtime
-    const _: Test1 = [] as Expected
-  })
-
-  vt.it('should build a tuple of length 3', () => {
-    type Expected = [unknown, unknown, unknown]
-    // @ts-expect-error - type-level test, not runtime
-    const _: Test3 = [] as Expected
-  })
-
-  vt.it('should build a tuple of length 5', () => {
-    type Expected = [unknown, unknown, unknown, unknown, unknown]
-    // @ts-expect-error - type-level test, not runtime
-    const _: Test5 = [] as Expected
-  })
-
-  vt.it('should work with Add type', () => {
-  // @ts-expect-error - type-level tests
-    type Sum = Add<2, 3>
-    type Expected = 5
-    const _: Sum = 5 as Expected
-  })
-})
-
-
-vt.describe('Add type', () => {
-  vt.it('should compute Add<0, 0> as 0', () => {
-    type Result = bs.Add<0, 0>
-    const _: Result = 0 as 0
-  })
-
-  vt.it('should compute Add<2, 3> as 5', () => {
-    type Result = bs.Add<2, 3>
-    const _: Result = 5 as 5
-  })
-
-  vt.it('should compute Add<4, 1> as 5', () => {
-    type Result = bs.Add<4, 1>
-    const _: Result = 5 as 5
-  })
-
-  vt.it('should compute Add<10, 0> as 10', () => {
-    type Result = bs.Add<10, 0>
-    const _: Result = 10 as 10
-  })
-
-  vt.it('should compute Add<0, 7> as 7', () => {
-    type Result = bs.Add<0, 7>
-    const _: Result = 7 as 7
   })
 })

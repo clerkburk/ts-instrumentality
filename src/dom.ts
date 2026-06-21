@@ -3,10 +3,10 @@
  *
  * @returns A Promise that resolves when the DOM is ready.
  */
-export function onceReady(): Promise<void> {
+export async function onceReady(): Promise<void> {
   if (document.readyState === "complete" || document.readyState === "interactive")
     return Promise.resolve()
-  return new Promise((resolve) => document.addEventListener("DOMContentLoaded", () => resolve(), { once: true }))
+  return new Promise(r => document.addEventListener("DOMContentLoaded", () => r(), { once: true }))
 }
 
 
@@ -32,9 +32,9 @@ export function byId<T extends HTMLElement>(_id: string, _elementType?: new () =
 /**
  * Retrieves all HTML elements with the specified class name and ensures they match the specified type.
  *
- * @param _className - The class name of the HTML elements to retrieve.
+ * @param _className - The class name of the elements to retrieve.
  * @param _elementType - An optional constructor function for the expected element type.
- * @returns An array of HTML elements with the specified class name and type.
+ * @returns An array of {@link HTMLElement} with the specified class name and type.
  * @throws Will throw an error if any element does not match the expected type.
  */
 export function byClass<T extends HTMLElement>(_className: string, _elementType?: new () => T): T[] {
@@ -62,23 +62,19 @@ export function byTag<K extends keyof HTMLElementTagNameMap>(_tagName: K): HTMLE
 declare global {
   interface Window {
     /**
-     * Extends the global `Window` interface to include the `__instrumentality__` property.
+     * Extends the global {@link Window} interface to include the {@link __instrumentality__} property.
      * 
-     * @property __instrumentality__ - A record for storing arbitrary key-value pairs,
-     *   typically used for attaching metadata to the window object (named after this library).
+     * @property {@link __instrumentality__} - A record for storing arbitrary key-value pairs,
+     * typically used for attaching metadata to the window object (named after this library).
      */
     __instrumentality__: Record<string, unknown>
   }
 }
 window.__instrumentality__ = window.__instrumentality__ ?? {}
 /**
- * A global store object attached to the `window` under the `__instrumentality__` property.
- * 
  * This store is intended to be used as a shared state or configuration object
  * accessible throughout the application. The exact structure and type of the store
- * depends on how `window.__instrumentality__` is defined elsewhere in the codebase.
- * 
- * @see window.__instrumentality__
+ * depends on how {@link window.__instrumentality__} is defined elsewhere in the codebase.
  */
 export const GLOBAL_STORE = window.__instrumentality__
 
@@ -91,47 +87,37 @@ export const DEFAULT_PATH = '/' as const
 
 
 export interface CookieData {
-  value: string
+  value: unknown
   expires?: Date | number
   domain?: string
   secure?: boolean
   sameSite?: 'Strict' | 'Lax' | 'None'
 }
 
-
-
 export function setCookie(_name: string, _data: CookieData, _path: string = DEFAULT_PATH): void {
-  let cookieString = `${encodeURIComponent(_name)}=${encodeURIComponent(_data.value)}; Path=${_path}`
+  let cookieString = `${encodeURIComponent(_name)}=${encodeURIComponent(JSON.stringify(_data.value))}; Path=${_path}`
   if (_data.expires)
-    if (_data.expires instanceof Date)
-      cookieString += `; Expires=${_data.expires.toUTCString()}`
-    else
-      cookieString += `; Max-Age=${_data.expires}`
-  if (_data.domain)
-    cookieString += `; Domain=${_data.domain}`
-  if (_data.secure)
-    cookieString += `; Secure`
-  if (_data.sameSite)
-    cookieString += `; SameSite=${_data.sameSite}`
+    if (_data.expires instanceof Date) cookieString += `; Expires=${_data.expires.toUTCString()}`
+    else cookieString += `; Max-Age=${_data.expires}`
+  if (_data.domain) cookieString += `; Domain=${_data.domain}`
+  if (_data.secure) cookieString += `; Secure`
+  if (_data.sameSite) cookieString += `; SameSite=${_data.sameSite}`
   document.cookie = cookieString
 }
-export function findCookie(_name: string): string | null {
+export function findCookie(_name: string): unknown | null {
   const matches = document.cookie.matchAll(COOKIE_PAIR_REGEX)
   for (const match of matches)
     if (decodeURIComponent(match[1] ?? "") === _name)
-      return decodeURIComponent(match[2] ?? "")
+      return JSON.parse(decodeURIComponent(match[2] ?? ""))
   return null
 }
-export function deleteCookie(_name: string, _path: string = DEFAULT_PATH): void {
+export function expireCookie(_name: string, _path: string = DEFAULT_PATH): void {
   setCookie(_name, { value: "", expires: new Date(0) }, _path)
 }
-export function listCookies(): Record<string, string> {
-  const cookies: Record<string, string> = {}
+export function listCookies(): Record<string, unknown> {
+  const cookies: Record<string, unknown> = {}
   const matches = document.cookie.matchAll(COOKIE_PAIR_REGEX)
-  for (const match of matches) {
-    const name = decodeURIComponent(match[1] ?? "")
-    const value = decodeURIComponent(match[2] ?? "")
-    cookies[name] = value
-  }
+  for (const match of matches)
+    cookies[decodeURIComponent(match[1] ?? "")] = JSON.parse(decodeURIComponent(match[2] ?? ""))
   return cookies
 }
