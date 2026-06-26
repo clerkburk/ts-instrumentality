@@ -42,13 +42,6 @@ export const lockedRoads = new Map<string, Promise<void>>()
 export abstract class Road {
   protected pointsTo: string
   get isAt() { return this.pointsTo }
-  set isAt(newPath: string) {
-    fs.accessSync(newPath, fs.constants.F_OK)
-    if (!(this instanceof roadTypeSync(newPath)))
-      throw new Error(`Type missmatch: Path '${newPath}' is not of type ${this.constructor.name}`)
-    const self: Road = this
-    self.pointsTo = newPath
-  }
   get name() { return ph.basename(this.isAt) }
   mutable: boolean = true
 
@@ -99,8 +92,7 @@ export abstract class Road {
     if (!this.mutable)
       throw new Error(`Attempting to modify road to '${this.isAt}' of type ${this.constructor.name} which's marked as immutable (unrelated to the actual OS file permissions)`)
     const lockedPath = this.isAt
-    while (lockedRoads.has(lockedPath))
-      await lockedRoads.get(lockedPath)
+    await (lockedRoads.get(lockedPath) || Promise.resolve())
     lockedRoads.set(lockedPath, new Promise<void>(res => releaseLock = res))
     return {
       [Symbol.dispose]() {
@@ -587,6 +579,10 @@ export class Folder extends Road {
     this.pointsTo = newPath
   }
 }
+export const Dir = Folder
+export const Directory = Folder
+export const Dict = Folder
+export const Dictionary = Folder
 
 
 export class SymbolicLink extends Road {
@@ -667,6 +663,7 @@ export class SymbolicLink extends Road {
     this.pointsTo = newPath
   }
 }
+export const Symlink = SymbolicLink
 
 
 export abstract class UnusableRoad extends Road {
@@ -694,7 +691,7 @@ export class Socket extends UnusableRoad { }
 
 export class IdentifiableFolderExperimental extends Folder {
   protected identifier: Buffer
-  get hash() { return Buffer.from(this.identifier) as Readonly<Buffer> }
+  get hash() { return Buffer.from(this.identifier) }
   constructor(_at: string) {
     super(_at)
     this.identifier = this.computeHashSync()
@@ -742,7 +739,7 @@ export class IdentifiableFolderExperimental extends Folder {
 
 export class IdentifiableFile extends File {
   protected identifier: Buffer
-  get hash() { return Buffer.from(this.identifier) as Readonly<Buffer> }
+  get hash() { return Buffer.from(this.identifier) }
   constructor(_at: string) {
     super(_at)
     this.identifier = this.computeHashSync()
@@ -793,3 +790,7 @@ export class TempFolder extends Folder implements AsyncDisposable, Disposable {
   [Symbol.dispose]() { fs.rmSync(this.isAt, { recursive: true }) }
   async [Symbol.asyncDispose]() { return fp.rm(this.isAt, {recursive: true}) }
 }
+export const TempDir = TempFolder
+export const TempDirectory = TempFolder
+export const TempDict = TempFolder
+export const TempDictionary = TempFolder
