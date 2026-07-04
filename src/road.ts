@@ -5,6 +5,8 @@ import * as ph from "node:path"
 import * as os from "node:os"
 import * as cr from "node:crypto"
 import { on } from "node:events"
+import * as bs from "./base.js"
+
 
 
 
@@ -48,7 +50,7 @@ export abstract class Road {
   constructor(lookFor: string) {
     fs.accessSync(lookFor, fs.constants.F_OK)
     this.pointsTo = ph.resolve(lookFor)
-    if (!(this instanceof roadTypeSync(this.isAt)))
+    if (!(this instanceof roadTypeSync(this.isAt))) // this check is relevant for subclasses of Road
       throw new Error(`Type missmatch: Path '${this.isAt}' is not of constructed type ${this.constructor.name}`)
   }
   static async factory(lookFor: string) {
@@ -210,6 +212,43 @@ export abstract class Road {
     finally { watcher.close() }
   }
 
+  metaSync(suffixID = "tsInstrumentalityMeta"): Record<string, unknown> {
+    if (!this.verifySync())
+      throw new Error(`Road not verified, can't get metadata for '${this.isAt}'`)
+    if (os.platform() === "win32")
+      return JSON.parse(fs.readFileSync(`${this.isAt}:${suffixID}`, 'utf-8'))
+    else
+      throw new Error("Extended attributes are not supported on this platform")
+  }
+  async meta(suffixID = "tsInstrumentalityMeta"): Promise<Record<string, unknown>> {
+    if (!await this.verify())
+      throw new Error(`Road not verified, can't get metadata for '${this.isAt}'`)
+    if (os.platform() === "win32")
+      return JSON.parse(await fp.readFile(`${this.isAt}:${suffixID}`, 'utf-8'))
+    else
+      throw new Error("Extended attributes are not supported on this platform")
+  }
+  setMetaSync(meta: Record<string, unknown>, suffixID = "tsInstrumentalityMeta") {
+    using _ = this.initChangeSync()
+    if (!this.verifySync())
+      throw new Error(`Road not verified, can't set metadata for '${this.isAt}'`)
+    const metaString = JSON.stringify(meta)
+    if (os.platform() === "win32")
+      fs.writeFileSync(`${this.isAt}:${suffixID}`, metaString, 'utf-8')
+    else
+      throw new Error("Extended attributes are not supported on this platform")
+  }
+  async setMeta(meta: Record<string, unknown>, suffixID = "tsInstrumentalityMeta") {
+    using _ = await this.initChange()
+    if (!await this.verify())
+      throw new Error(`Road not verified, can't set metadata for '${this.isAt}'`)
+    const metaString = JSON.stringify(meta)
+    if (os.platform() === "win32")
+      await fp.writeFile(`${this.isAt}:${suffixID}`, metaString, 'utf-8')
+    else
+      throw new Error("Extended attributes are not supported on this platform")
+  }
+
   abstract deleteSync(): void
   abstract delete(): Promise<void>
   abstract moveSync(into: Folder): void
@@ -224,6 +263,23 @@ export abstract class Road {
 export class File extends Road {
   get ext() { return ph.extname(this.isAt) }
   get noExt() { return ph.basename(this.isAt, this.ext) }
+
+  static createSync(at: string) {
+    try {
+      fs.accessSync(at, fs.constants.F_OK)
+    } catch {
+      fs.writeFileSync(at, "")
+    }
+    return new File(at)
+  }
+  static async create(at: string) {
+    try {
+      await fp.access(at, fs.constants.F_OK)
+    } catch {
+      await fp.writeFile(at, "")
+    }
+    return new File(at)
+  }
 
   readSync(): Buffer
   readSync(encoding: BufferEncoding, flag?: string): string
@@ -299,6 +355,13 @@ export class File extends Road {
       hash.update(chunk)
     return encoding ? hash.digest(encoding) : hash.digest()
   }
+  streamHash(algorithm = "sha256", options?: cr.HashOptions) {
+    const hash = cr.createHash(algorithm, options)
+    const readStream = fs.createReadStream(this.isAt)
+    readStream.on('data', chunk => hash.update(chunk))
+    readStream.on('end', () => hash.digest())
+    return readStream
+  }
 
   writeSync(data: Buffer | string, options?: fs.WriteFileOptions) {
     using _ = this.initChangeSync()
@@ -317,32 +380,6 @@ export class File extends Road {
     await fp.appendFile(this.isAt, data, options)
   }
 
-  readStream() {
-    const stream = fs.createReadStream(this.isAt)
-    ;(stream as any)[Symbol.dispose] = stream.close
-    ;(stream as any)[Symbol.asyncDispose] = async () => stream.close()
-    return stream as fs.ReadStream & {
-      [Symbol.dispose](): void
-      [Symbol.asyncDispose](): Promise<void>
-    }
-  }
-  writeStream() {
-    const _ = this.initChangeSync() // manual disposal as the stream needs to stay open after this function returns
-    const stream = fs.createWriteStream(this.isAt)
-    const dispose = () => {
-      _[Symbol.dispose]()
-      stream.close()
-    }
-    stream.on('close', dispose)
-    stream.on('error', dispose)
-    stream.on('finish', dispose)
-    ;(stream as any)[Symbol.dispose] = dispose
-    ;(stream as any)[Symbol.asyncDispose] = async () => dispose()
-    return stream as fs.WriteStream & {
-      [Symbol.dispose](): void
-      [Symbol.asyncDispose](): Promise<void>
-    }
-  }
   async sameAs(other: File) {
     if (this.isAt === other.isAt)
       return true
@@ -379,7 +416,7 @@ export class File extends Road {
   }
   async delete() {
     using _ = await this.initChange()
-    return fp.unlink(this.isAt)
+    await fp.unlink(this.isAt)
   }
   moveSync(into: Folder) {
     using _ = this.initChangeSync()
@@ -424,44 +461,21 @@ export class Folder extends Road {
   static tmp() { return new Folder(os.tmpdir()) }
   static here() { return new Folder(process.cwd()) }
 
-  static async create(_at: string): Promise<Folder> {
+  static async create(at: string): Promise<Folder> {
     try {
-      await fp.access(_at, fs.constants.F_OK)
+      await fp.access(at, fs.constants.F_OK)
     } catch {
-      await fp.mkdir(_at, { recursive: true })
+      await fp.mkdir(at, { recursive: true })
     }
-    return new Folder(_at)
+    return new Folder(at)
   }
-  static createSync(_at: string): Folder {
+  static createSync(at: string): Folder {
     try {
-      fs.accessSync(_at, fs.constants.F_OK)
+      fs.accessSync(at, fs.constants.F_OK)
     } catch {
-      fs.mkdirSync(_at, { recursive: true })
+      fs.mkdirSync(at, { recursive: true })
     }
-    return new Folder(_at)
-  }
-
-  // Prefered way of creating entries into a folder
-  createFileSync(name: string) {
-    try { fs.accessSync(this.join(name), fs.constants.F_OK) }
-    catch { fs.writeFileSync(this.join(name), "") }
-    return new File(this.join(name))
-  }
-  async createFile(name: string) {
-    try { await fp.access(this.join(name), fs.constants.F_OK) }
-    catch { await fp.writeFile(this.join(name), "") }
-    return new File(this.join(name))
-  }
-
-  createFolderSync(name: string) {
-    try { fs.accessSync(this.join(name), fs.constants.F_OK) }
-    catch { fs.mkdirSync(this.join(name), { recursive: true }) }
-    return new Folder(this.join(name))
-  }
-  async createFolder(name: string) {
-    try { await fp.access(this.join(name), fs.constants.F_OK) }
-    catch { await fp.mkdir(this.join(name), { recursive: true }) }
-    return new Folder(this.join(name))
+    return new Folder(at)
   }
 
   join(...paths: string[]) {
@@ -536,13 +550,24 @@ export class Folder extends Road {
     }
   }
 
+  addSync<T extends Road>(name: string, createable: { createSync: (at: string) => T }): T {
+    const newPath = this.join(name)
+    createable.createSync(newPath)
+    return Road.factorySync(newPath) as unknown as T
+  }
+  async add<T extends Road>(name: string, createable: { create: (at: string) => Promise<T> }): Promise<T> {
+    const newPath = this.join(name)
+    await createable.create(newPath)
+    return Road.factory(newPath) as unknown as Promise<T>
+  }
+
   deleteSync(options: fs.RmOptions = { recursive: true }) {
     using _ = this.initChangeSync()
     fs.rmSync(this.isAt, options)
   }
   async delete(options: fs.RmOptions = { recursive: true }) {
     using _ = await this.initChange()
-    return fp.rm(this.isAt, options)
+    await fp.rm(this.isAt, options)
   }
   moveSync(into: Folder) {
     using _ = this.initChangeSync()
@@ -586,19 +611,19 @@ export const Dictionary = Folder
 
 
 export class SymbolicLink extends Road {
-  static async create(at: string, target?: Road) {
+  static async create(at: string, target: Road) {
     try {
       await fp.access(at, fs.constants.F_OK)
     } catch {
-      await fp.symlink(target?.isAt ?? "", at)
+      await fp.symlink(target.isAt, at)
     }
     return new SymbolicLink(at)
   }
-  static createSync(_at: string, _target?: Road) {
+  static createSync(_at: string, _target: Road) {
     try {
       fs.accessSync(_at, fs.constants.F_OK)
     } catch {
-      fs.symlinkSync(_target?.isAt ?? "", _at)
+      fs.symlinkSync(_target.isAt, _at)
     }
     return new SymbolicLink(_at)
   }
@@ -624,7 +649,7 @@ export class SymbolicLink extends Road {
   }
   async delete() {
     using _ = await this.initChange()
-    return fp.unlink(this.isAt)
+    await fp.unlink(this.isAt)
   }
   moveSync(_into: Folder) {
     using _ = this.initChangeSync()
@@ -672,16 +697,17 @@ export abstract class UnusableRoad extends Road {
     super(_at)
     Object.freeze(this)
   }
-  override initChangeSync(): never { throw new Error(`Cannot modify type ${this.constructor.name} at '${this.isAt}'`) }
-  override async initChange(): Promise<never> { throw new Error(`Cannot modify type ${this.constructor.name} at '${this.isAt}'`) }
-  deleteSync(): never { throw new Error(`Cannot delete type ${this.constructor.name} at '${this.isAt}'`) }
-  async delete(): Promise<never> { throw new Error(`Cannot delete type ${this.constructor.name} at '${this.isAt}'`) }
-  moveSync(): never { throw new Error(`Cannot move type ${this.constructor.name} at '${this.isAt}'`) }
-  async move(): Promise<never> { throw new Error(`Cannot move type ${this.constructor.name} at '${this.isAt}'`) }
-  copySync(): never { throw new Error(`Cannot copy type ${this.constructor.name} at '${this.isAt}'`) }
-  async copy(): Promise<never> { throw new Error(`Cannot copy type ${this.constructor.name} at '${this.isAt}'`) }
-  renameSync(): never { throw new Error(`Cannot rename type ${this.constructor.name} at '${this.isAt}'`) }
-  async rename(): Promise<never> { throw new Error(`Cannot rename type ${this.constructor.name} at '${this.isAt}'`) }
+  error(): never { throw new Error(`${this.constructor.name} at '${this.isAt}' is a system-level resource thus intentionally made immutable.`) }
+  override initChangeSync(): never { return this.error() }
+  override async initChange(): Promise<never> { return this.error() }
+  override deleteSync(): never { return this.error() }
+  override async delete(): Promise<never> { return this.error() }
+  override moveSync(): never { return this.error() }
+  override async move(): Promise<never> { return this.error() }
+  override copySync(): never { return this.error() }
+  override async copy(): Promise<never> { return this.error() }
+  override renameSync(): never { return this.error() }
+  override async rename(): Promise<never> { return this.error() }
 }
 export class BlockDevice extends UnusableRoad { }
 export class CharacterDevice extends UnusableRoad { }
@@ -689,61 +715,13 @@ export class Fifo extends UnusableRoad { }
 export class Socket extends UnusableRoad { }
 
 
-export class IdentifiableFolderExperimental extends Folder {
-  protected identifier: Buffer
-  get hash() { return Buffer.from(this.identifier) }
-  constructor(_at: string) {
-    super(_at)
-    this.identifier = this.computeHashSync()
-  }
-  override verifySync() {
-    if (!super.verifySync())
-      return false
-    return this.identifier.equals(this.computeHashSync())
-  }
-  override async verify() {
-    if (!await super.verify())
-      return false
-    return this.identifier.equals(await this.computeHash())
-  }
-  override createFileSync(name: string): File {
-    const file = super.createFileSync(name)
-    this.identifier = this.computeHashSync()
-    return file
-  }
-  override async createFile(name: string): Promise<File> {
-    const file = await super.createFile(name)
-    this.identifier = await this.computeHash()
-    return file
-  }
-  computeHashSync(algorithm: string = "sha256", options?: cr.HashOptions): Buffer {
-    const hash = cr.createHash(algorithm, options)
-    for (const f of this.listSync(File))
-      hash.update(f.computeHashSync())
-    return hash.digest()
-  }
-  async computeHash(algorithm: string = "sha256", options?: cr.HashOptions): Promise<Buffer> {
-    const hash = cr.createHash(algorithm, options)
-    for (const f of await this.list(File))
-      hash.update(await f.computeHash())
-    return hash.digest()
-  }
-  refreshSync() {
-    this.identifier = this.computeHashSync()
-  }
-  async refresh() {
-    this.identifier = await this.computeHash()
-  }
-}
-
-
 export class IdentifiableFile extends File {
   protected identifier: Buffer
-  get hash() { return Buffer.from(this.identifier) }
   constructor(_at: string) {
     super(_at)
     this.identifier = this.computeHashSync()
   }
+  hash() { return Buffer.from(this.identifier) }
   override verifySync(writeableCheck: boolean = true) {
     return super.verifySync(writeableCheck) && this.identifier.equals(this.computeHashSync())
   }
@@ -770,27 +748,33 @@ export class IdentifiableFile extends File {
 
 
 export class TempFile extends File implements AsyncDisposable, Disposable {
-  constructor(ext = '.tmp') {
-    const randomName = `tempfile_${Date.now()}_${cr.randomUUID()}${ext}`
-    super(Folder.tmp().createFileSync(randomName).isAt)
-    ;['exit', 'SIGINT', 'SIGTERM'].forEach(e => process.on(e, () => fs.rmSync(this.isAt)))
+  protected readonly token: symbol
+  constructor(exitOnSignal: readonly string[] = ['exit', 'SIGINT', 'SIGTERM']) {
+    const randomName = `tempfile_${Date.now()}_${cr.randomUUID()}.tmp`
+    super(Folder.tmp().addSync(randomName, File).isAt)
+    if (exitOnSignal.length > 0)
+      exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt)))
     Object.freeze(this)
+    this.token = bs.disposeable(Object.assign(this, {destructor: () => fs.rmSync(this.isAt)}))
   }
-  [Symbol.dispose]() { fs.rmSync(this.isAt) }
-  async [Symbol.asyncDispose]() { return fp.rm(this.isAt) }
+  [Symbol.dispose]() { fs.rmSync(this.isAt); bs.disposeableFinalizer.unregister(this.token) }
+  async [Symbol.asyncDispose]() { await fp.rm(this.isAt); bs.disposeableFinalizer.unregister(this.token) }
 }
-
-
 export class TempFolder extends Folder implements AsyncDisposable, Disposable {
-  constructor() {
-    super(Folder.tmp().createFolderSync(`tempfolder_${Date.now()}_${cr.randomUUID()}`).isAt)
-    ;['exit', 'SIGINT', 'SIGTERM'].forEach(e => process.on(e, () => fs.rmSync(this.isAt, { recursive: true })))
+  protected readonly token: symbol
+  constructor(exitOnSignal: readonly string[] = ['exit', 'SIGINT', 'SIGTERM']) {
+    const randomName = `tempfolder_${Date.now()}_${cr.randomUUID()}`
+    super(Folder.tmp().addSync(randomName, Folder).isAt)
+    if (exitOnSignal.length > 0)
+      exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt, { recursive: true })))
     Object.freeze(this)
+    this.token = bs.disposeable(Object.assign(this, {destructor: () => fs.rmSync(this.isAt, { recursive: true })}))
   }
-  [Symbol.dispose]() { fs.rmSync(this.isAt, { recursive: true }) }
-  async [Symbol.asyncDispose]() { return fp.rm(this.isAt, {recursive: true}) }
+  [Symbol.dispose]() { fs.rmSync(this.isAt, { recursive: true }); bs.disposeableFinalizer.unregister(this.token) }
+  async [Symbol.asyncDispose]() { await fp.rm(this.isAt, { recursive: true }); bs.disposeableFinalizer.unregister(this.token) }
 }
-export const TempDir = TempFolder
-export const TempDirectory = TempFolder
-export const TempDict = TempFolder
-export const TempDictionary = TempFolder
+
+
+
+const target = Road.factorySync(process.argv[2]!)
+console.debug(SymbolicLink.createSync(".cache/" + target.name, target))

@@ -124,6 +124,16 @@ export type Add<A extends number, B extends number> =
   [...BuildTuple<A>, ...BuildTuple<B>]['length']
 
 
+/**
+ * Helper type to enumerate numbers from 0 to N-1.
+ *
+ * @template N - The upper limit (exclusive) for the enumeration.
+ * @template A - The accumulator array used for recursion.
+ */
+export type Enumerate<N extends number, A extends number[] = []> =
+A['length'] extends N ? A[number] : Enumerate<N, [...A, A['length']]>
+
+
 
 /**
  * A benchmarking class that provides various time units for measuring elapsed time.
@@ -134,6 +144,7 @@ export type Add<A extends number, B extends number> =
  * @property {@link rounds} - An array that stores the recorded elapsed times from each round.
  * @property {@link timer} - The initial timestamp when the benchmark was created or last reset.
  * @method {@link round} - Records the current elapsed time and restarts the timer.
+ * @method {@link reset} - Resets the benchmark timer to the current time and clears recorded rounds.
  * @accessor {@link y} - Elapsed time in years (assuming 365.25 days per year).
  * @accessor {@link mn} - Elapsed time in months (assuming 30.44 days per month).
  * @accessor {@link w} - Elapsed time in weeks.
@@ -153,6 +164,8 @@ export class Benchmark {
   timer = performance.now()
   /** Records the current elapsed time and restarts the timer. */
   round() { this.rounds.push(this.ms); this.timer = performance.now() }
+  /** Resets the benchmark timer to the current time and clears recorded rounds. */
+  reset() { this.rounds = []; this.timer = performance.now() }
   /** Elapsed time in years (assuming 365.25 days per year). */
   get y() { return this.mn / 12 }
   /** Elapsed time in months (assuming 30.44 days per month). */
@@ -176,3 +189,46 @@ export class Benchmark {
   /** Elapsed time in picoseconds. */
   get ps() { return this.ns * 1e3 }
 }
+
+
+
+export const disposeableFinalizer = new FinalizationRegistry<{destructor: () => unknown}>(o => o.destructor())
+export function disposeable<T extends {destructor: () => unknown}>(_obj: T) {
+  const token = Symbol("disposeableToken" + crypto.randomUUID())
+  disposeableFinalizer.register(_obj, {destructor: _obj.destructor}, token)
+  return token
+}
+
+
+
+export type Uint8ArrayView = Pick<Uint8Array,
+  | "at"
+  | "includes"
+  | "indexOf"
+  | "lastIndexOf"
+  | "find"
+  | "findIndex"
+  | "findLast"
+  | "findLastIndex"
+  | "every"
+  | "some"
+  | "forEach"
+  | "entries"
+  | "keys"
+  | "values"
+  | typeof Symbol.iterator
+  | "reduce"
+  | "reduceRight"
+  | "join"
+  | "toLocaleString"
+  | "toString"
+  | "map"
+  | "filter"
+  | "slice"
+  | "toReversed"
+  | "toSorted"
+  | "with"
+  | "length"
+  | "byteLength"
+  | "byteOffset"
+> & { readonly [n: number]: Enumerate<256> }

@@ -1,7 +1,9 @@
 {
   "name": "ts-instrumentality",
+  "type": "module",
   "version": "1.0.6",
   "main": "./dist/base.js",
+  "types": "./dist/base.d.ts",
   "devDependencies": {
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3",
@@ -28,19 +30,19 @@
       "import": "./dist/dom.js",
       "types": "./dist/dom.d.ts"
     },
-    "./serv": {
-      "import": "./dist/serv.js",
-      "types": "./dist/serv.d.ts"
-    }
+    "./src/base": "./src/base.ts",
+    "./src/road": "./src/road.ts",
+    "./src/dom": "./src/dom.ts"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "README.md"
   ],
   "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "prepare": "tsc"
-  },
-  "type": "module",
-  "types": "./dist/base.d.ts"
+    "test:watch": "vitest"
+  }
 }
