@@ -754,11 +754,12 @@ export class TempFile extends File implements AsyncDisposable, Disposable {
     super(Folder.tmp().addSync(randomName, File).isAt)
     if (exitOnSignal.length > 0)
       exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt)))
+    this.token = bs.disposeable(this)
     Object.freeze(this)
-    this.token = bs.disposeable(Object.assign(this, {destructor: () => fs.rmSync(this.isAt)}))
   }
   [Symbol.dispose]() { fs.rmSync(this.isAt); bs.disposeableFinalizer.unregister(this.token) }
   async [Symbol.asyncDispose]() { await fp.rm(this.isAt); bs.disposeableFinalizer.unregister(this.token) }
+  destructor() { fs.rmSync(this.isAt) }
 }
 export class TempFolder extends Folder implements AsyncDisposable, Disposable {
   protected readonly token: symbol
@@ -767,14 +768,15 @@ export class TempFolder extends Folder implements AsyncDisposable, Disposable {
     super(Folder.tmp().addSync(randomName, Folder).isAt)
     if (exitOnSignal.length > 0)
       exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt, { recursive: true })))
+    this.token = bs.disposeable(this)
     Object.freeze(this)
-    this.token = bs.disposeable(Object.assign(this, {destructor: () => fs.rmSync(this.isAt, { recursive: true })}))
   }
   [Symbol.dispose]() { fs.rmSync(this.isAt, { recursive: true }); bs.disposeableFinalizer.unregister(this.token) }
   async [Symbol.asyncDispose]() { await fp.rm(this.isAt, { recursive: true }); bs.disposeableFinalizer.unregister(this.token) }
+  destructor() { fs.rmSync(this.isAt, { recursive: true }) }
 }
 
 
 
-const target = Road.factorySync(process.argv[2]!)
-console.debug(SymbolicLink.createSync(".cache/" + target.name, target))
+// const target = Road.factorySync(process.argv[2]!)
+// console.debug(SymbolicLink.createSync(".cache/" + target.name, target))
