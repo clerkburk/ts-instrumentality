@@ -753,13 +753,13 @@ export class TempFile extends File implements AsyncDisposable, Disposable {
     const randomName = `tempfile_${Date.now()}_${cr.randomUUID()}.tmp`
     super(Folder.tmp().addSync(randomName, File).isAt)
     if (exitOnSignal.length > 0)
-      exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt)))
+      exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt, { force: true })))
     this.token = bs.disposeable(this)
     Object.freeze(this)
   }
-  [Symbol.dispose]() { fs.rmSync(this.isAt); bs.disposeableFinalizer.unregister(this.token) }
-  async [Symbol.asyncDispose]() { await fp.rm(this.isAt); bs.disposeableFinalizer.unregister(this.token) }
-  destructor() { fs.rmSync(this.isAt) }
+  [Symbol.dispose]() { fs.rmSync(this.isAt, { force: true }); bs.disposeableFinalizer.unregister(this.token) }
+  async [Symbol.asyncDispose]() { await fp.rm(this.isAt, { force: true }); bs.disposeableFinalizer.unregister(this.token) }
+  destructor() { fs.rmSync(this.isAt, { force: true }) }
 }
 export class TempFolder extends Folder implements AsyncDisposable, Disposable {
   protected readonly token: symbol
@@ -767,13 +767,13 @@ export class TempFolder extends Folder implements AsyncDisposable, Disposable {
     const randomName = `tempfolder_${Date.now()}_${cr.randomUUID()}`
     super(Folder.tmp().addSync(randomName, Folder).isAt)
     if (exitOnSignal.length > 0)
-      exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt, { recursive: true })))
+      exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(this.isAt, { recursive: true, force: true })))
     this.token = bs.disposeable(this)
     Object.freeze(this)
   }
-  [Symbol.dispose]() { fs.rmSync(this.isAt, { recursive: true }); bs.disposeableFinalizer.unregister(this.token) }
-  async [Symbol.asyncDispose]() { await fp.rm(this.isAt, { recursive: true }); bs.disposeableFinalizer.unregister(this.token) }
-  destructor() { fs.rmSync(this.isAt, { recursive: true }) }
+  [Symbol.dispose]() { fs.rmSync(this.isAt, { recursive: true, force: true }); bs.disposeableFinalizer.unregister(this.token) }
+  async [Symbol.asyncDispose]() { await fp.rm(this.isAt, { recursive: true, force: true }); bs.disposeableFinalizer.unregister(this.token) }
+  destructor() { fs.rmSync(this.isAt, { recursive: true, force: true }) }
 }
 
 
