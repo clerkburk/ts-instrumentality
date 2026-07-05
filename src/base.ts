@@ -192,15 +192,36 @@ export class Benchmark {
 
 
 
-export const disposeableFinalizer = new FinalizationRegistry<{destructor: () => unknown}>(o => o.destructor())
-export function disposeable<T extends {destructor: () => unknown}>(_obj: T) {
-  const token = Symbol("disposeableToken" + crypto.randomUUID())
-  disposeableFinalizer.register(_obj, {destructor: _obj.destructor}, token)
-  return token
+/**
+ * Generates a random integer within a specified range, inclusive of both endpoints.
+ *
+ * @param _min - The minimum value of the range (inclusive). Defaults to `-0x80000000` to the lowest 32-bit signed integer.
+ * @param _max - The maximum value of the range (inclusive). Defaults to `0x7fffffff` to the highest 32-bit signed integer.
+ * @returns A random integer between {@link _min} and {@link _max}, inclusive.
+ * @throws If {@link _min} or {@link _max} are not safe integers, or if the range is too large (greater than 2^32).
+ */
+export function rand(_min: number = -0x80000000, _max: number = 0x7fffffff): number {
+  if (!Number.isSafeInteger(_min) || !Number.isSafeInteger(_max))
+    throw new Error("Arguments must be safe integers")
+  if (_min > _max) [_min, _max] = [_max, _min]
+  const span = _max - _min + 1
+  if (span > 0x100000000)
+    throw new Error("Range is too large; max supported span is 2^32")
+  const maxUnbiased = Math.floor(0x100000000 / span) * span
+  const arr = new Uint32Array(1)
+  let x: number
+  do {
+    globalThis.crypto.getRandomValues(arr)
+    x = arr[0]!
+  } while (x >= maxUnbiased)
+  return _min + (x % span)
 }
 
 
 
+/**
+ * Helper type that represents a view of a Uint8Array, exposing only view methods and properties, along with a readonly index signature for accessing elements.
+ */
 export type Uint8ArrayView = Pick<Uint8Array,
   | "at"
   | "includes"

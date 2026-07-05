@@ -13,9 +13,8 @@
     "target": "ESNext",
     "lib": ["esnext", "dom"],
     "types": ["node"],
-    "moduleResolution": "nodenext",
     "isolatedModules": true,
-    "moduleDetection": "force",
+    "moduleDetection": "auto",
     "verbatimModuleSyntax": true,
 
     // Style Options

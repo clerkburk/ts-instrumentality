@@ -6,16 +6,7 @@
   "types": "./dist/base.d.ts",
   "devDependencies": {
     "@types/node": "^24.10.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.16",
-    "tsx": "^4.21.0",
-
-    "@eslint/js": "^9.39.2",
-    "@typescript-eslint/eslint-plugin": "^8.51.0",
-    "@typescript-eslint/parser": "^8.51.0",
-    "eslint": "^9.39.2",
-    "jiti": "^2.6.1",
-    "typescript-eslint": "^8.51.0"
+    "@typescript/native-preview": "^7.0.0-dev.20260705.1"
   },
   "exports": {
     ".": {
@@ -40,7 +31,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsgo",
     "prepublishOnly": "npm run build",
     "prepare": "npm run build",
     "test": "vitest run",
