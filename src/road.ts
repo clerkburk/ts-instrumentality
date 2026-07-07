@@ -9,9 +9,8 @@ import { on } from "node:events"
 
 
 
-export function roadTypeSync(pathorMode: string | number) {
-  const mode = typeof pathorMode === 'string' ? fs.lstatSync(pathorMode).mode : pathorMode
-  switch (mode & fs.constants.S_IFMT) {
+export function modeCtor(statmode: number) {
+  switch (statmode & fs.constants.S_IFMT) {
     case fs.constants.S_IFREG: return File
     case fs.constants.S_IFDIR: return Folder
     case fs.constants.S_IFBLK: return BlockDevice
@@ -19,21 +18,18 @@ export function roadTypeSync(pathorMode: string | number) {
     case fs.constants.S_IFLNK: return SymbolicLink
     case fs.constants.S_IFIFO: return Fifo
     case fs.constants.S_IFSOCK: return Socket
-    default: throw new Error(`Unknown mode type ${mode} for path/mode: '${pathorMode}'`)
+    default: throw new Error(`Unknown mode type ${statmode}`)
   }
 }
-export async function roadType(pathorMode: string | number) {
-  const mode = typeof pathorMode === 'string' ? (await fp.lstat(pathorMode)).mode : pathorMode
-  switch (mode & fs.constants.S_IFMT) {
-    case fs.constants.S_IFREG: return File
-    case fs.constants.S_IFDIR: return Folder
-    case fs.constants.S_IFBLK: return BlockDevice
-    case fs.constants.S_IFCHR: return CharacterDevice
-    case fs.constants.S_IFLNK: return SymbolicLink
-    case fs.constants.S_IFIFO: return Fifo
-    case fs.constants.S_IFSOCK: return Socket
-    default: throw new Error(`Unknown mode type ${mode} for path/mode: '${pathorMode}'`)
-  }
+
+
+export async function factory(lookFor: string) {
+  await fp.access(lookFor, fs.constants.F_OK)
+  return new (modeCtor((await fp.lstat(lookFor)).mode))(lookFor)
+}
+export function factorySync(lookFor: string) {
+  fs.accessSync(lookFor, fs.constants.F_OK)
+  return new (modeCtor(fs.lstatSync(lookFor).mode))(lookFor)
 }
 
 
@@ -43,25 +39,20 @@ export const lockedRoads = new Map<string, Promise<void>>()
 
 export abstract class Road {
   protected pointsTo: string
+  mutable: boolean = true
+
+  // Quick conversion
   get isAt() { return this.pointsTo }
   get name() { return ph.basename(this.isAt) }
-  mutable: boolean = true
+  toString() { return this.isAt }
+  typeSync() { return (modeCtor(fs.lstatSync(this.isAt).mode)) }
+  async type() { return (modeCtor((await fp.lstat(this.isAt)).mode)) }
 
   constructor(lookFor: string) {
     fs.accessSync(lookFor, fs.constants.F_OK)
     this.pointsTo = ph.resolve(lookFor)
-    if (!(this instanceof roadTypeSync(this.isAt))) // this check is relevant for subclasses of Road
+    if (!(this instanceof this.typeSync())) // this check is relevant for subclasses of Road
       throw new Error(`Type missmatch: Path '${this.isAt}' is not of constructed type ${this.constructor.name}`)
-  }
-  static async factory(lookFor: string) {
-    await fp.access(lookFor, fs.constants.F_OK)
-    const roadCtor = roadTypeSync(lookFor)
-    return new roadCtor(lookFor)
-  }
-  static factorySync(lookFor: string) {
-    fs.accessSync(lookFor, fs.constants.F_OK)
-    const roadCtor = roadTypeSync(lookFor)
-    return new roadCtor(lookFor)
   }
 
   verifySync(writeableCheck: boolean = true) {
@@ -72,7 +63,7 @@ export abstract class Road {
       fs.accessSync(this.isAt, fs.constants.R_OK)
       if (writeableCheck)
         fs.accessSync(this.isAt, fs.constants.W_OK)
-      return this instanceof roadTypeSync(this.isAt)
+      return this instanceof this.typeSync()
     } catch {
       return false
     }
@@ -83,14 +74,14 @@ export abstract class Road {
       await fp.access(this.isAt, fs.constants.R_OK)
       if (writeableCheck)
         await fp.access(this.isAt, fs.constants.W_OK)
-      return this instanceof roadTypeSync(this.isAt)
+      return this instanceof (await this.type())
     } catch {
       return false
     }
   }
   protected async initChange(releaseLock = () => {}) { // using RAII pattern to prevent changes if the file is modified externally during an operation, which would cause data loss or other issues. This is done by acquiring a lock before the operation and releasing it afterward. If the file is modified externally, the lock will prevent the operation from proceeding, and an error will be thrown.
     if (!await this.verify())
-      throw new Error(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? roadTypeSync(this.isAt).name : 'nonexistent'})`)
+      throw new Error(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? this.typeSync().name : 'nonexistent'})`)
     if (!this.mutable)
       throw new Error(`Attempting to modify road to '${this.isAt}' of type ${this.constructor.name} which's marked as immutable (unrelated to the actual OS file permissions)`)
     const lockedPath = this.isAt
@@ -111,7 +102,7 @@ export abstract class Road {
   }
   protected initChangeSync(releaseLock = () => {}) {
     if (!this.verifySync())
-      throw new Error(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? roadTypeSync(this.isAt).name : 'nonexistent'})`)
+      throw new Error(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? this.typeSync().name : 'nonexistent'})`)
     if (!this.mutable)
       throw new Error(`Attempting to modify road to '${this.isAt}' of type ${this.constructor.name} which's marked as immutable (unrelated to the actual OS file permissions)`)
     const lockedPath = this.isAt
@@ -132,12 +123,12 @@ export abstract class Road {
     }
   }
   existsSync() {
-    return fs.existsSync(this.isAt) && (this instanceof roadTypeSync(this.isAt))
+    return fs.existsSync(this.isAt) && (this instanceof this.typeSync())
   }
   async exists() {
     try {
       await fp.access(this.isAt, fs.constants.F_OK)
-      return this instanceof roadTypeSync(this.isAt)
+      return this instanceof (await this.type())
     } catch {
       return false
     }
@@ -495,7 +486,7 @@ export class Folder extends Road {
   itSync<T extends Road>(expectedType: new (_: string) => T): Iterable<T>
   *itSync<T extends Road>(expectedType?: new (_: string) => T): Iterable<Road> | Iterable<T> {
     for (const entry of fs.readdirSync(this.isAt)) {
-      const road = Road.factorySync(this.join(entry))
+      const road = factorySync(this.join(entry))
       if (!expectedType || road instanceof expectedType)
         yield road
     }
@@ -504,7 +495,7 @@ export class Folder extends Road {
   it<T extends Road>(expectedType: new (_: string) => T): AsyncIterable<T>
   async *it<T extends Road>(expectedType?: new (_: string) => T): AsyncIterable<Road> | AsyncIterable<T> {
     for (const entry of await fp.readdir(this.isAt)) {
-      const road = await Road.factory(this.join(entry))
+      const road = await factory(this.join(entry))
       if (!expectedType || road instanceof expectedType)
         yield road
     }
@@ -512,7 +503,7 @@ export class Folder extends Road {
   listSync(): Road[]
   listSync<T extends Road>(expectedType: new (_: string) => T): T[]
   listSync<T extends Road>(expectedType?: new (_: string) => T): Road[] | T[] {
-    const entries = fs.readdirSync(this.isAt).map(entry => Road.factorySync(this.join(entry)))
+    const entries = fs.readdirSync(this.isAt).map(entry => factorySync(this.join(entry)))
     if (!expectedType)
       return entries
     return entries.filter(entry => entry instanceof expectedType) as unknown as T[]
@@ -520,7 +511,7 @@ export class Folder extends Road {
   async list(): Promise<Road[]>
   async list<T extends Road>(_expectedType: new (_: string) => T): Promise<T[]>
   async list<T extends Road>(_expectedType?: new (_: string) => T): Promise<Road[] | T[]> {
-    const entries = (await fp.readdir(this.isAt)).map(async entry => Road.factory(this.join(entry)))
+    const entries = (await fp.readdir(this.isAt)).map(async entry => factory(this.join(entry)))
     const resolvedEntries = await Promise.all(entries)
     if (!_expectedType)
       return resolvedEntries
@@ -532,7 +523,7 @@ export class Folder extends Road {
   findSync<T extends Road>(name: string, _expectedType?: new (_: string) => T): Road | T | null {
     try {
       fs.accessSync(this.join(name), fs.constants.F_OK)
-      const found = Road.factorySync(this.join(name))
+      const found = factorySync(this.join(name))
       if (!_expectedType)
         return found
       if (found instanceof _expectedType)
@@ -548,7 +539,7 @@ export class Folder extends Road {
   async find<T extends Road>(name: string, _expectedType?: new (_: string) => T): Promise<Road | T | null> {
     try {
       await fp.access(this.join(name), fs.constants.F_OK)
-      const found = await Road.factory(this.join(name))
+      const found = await factory(this.join(name))
       if (!_expectedType)
         return found
       if (found instanceof _expectedType)
@@ -562,12 +553,12 @@ export class Folder extends Road {
   addSync<T extends Road>(name: string, createable: { createSync: (at: string) => T }): T {
     const newPath = this.join(name)
     createable.createSync(newPath)
-    return Road.factorySync(newPath) as unknown as T
+    return factorySync(newPath) as unknown as T
   }
   async add<T extends Road>(name: string, createable: { create: (at: string) => Promise<T> }): Promise<T> {
     const newPath = this.join(name)
     await createable.create(newPath)
-    return Road.factory(newPath) as unknown as Promise<T>
+    return factory(newPath) as unknown as Promise<T>
   }
 
   deleteSync(options: fs.RmOptions = { recursive: true }) {
@@ -652,10 +643,10 @@ export class SymbolicLink extends Road {
   }
 
   targetSync() {
-    return Road.factorySync(ph.resolve(ph.dirname(this.isAt), fs.readlinkSync(this.isAt)))
+    return factorySync(ph.resolve(ph.dirname(this.isAt), fs.readlinkSync(this.isAt)))
   }
   async target() {
-    return Road.factory(ph.resolve(ph.dirname(this.isAt), await fp.readlink(this.isAt)))
+    return factory(ph.resolve(ph.dirname(this.isAt), await fp.readlink(this.isAt)))
   }
   retargetSync(_newTarget: Road) {
     this.deleteSync()
