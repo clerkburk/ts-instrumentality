@@ -1,17 +1,17 @@
 /**
  * Generates an array of numbers within a specified range.
  *
- * If only one argument is provided, it generates a range from 0 up to (but not including) `_from`.
- * If two arguments are provided, it generates a range from `_from` up to (but not including) `_to`.
- * The optional `_step` argument specifies the increment (default is 1).
- * If `_from` is greater than `_to`, the range is generated in reverse order.
+ * If only one argument is provided, it generates a range from 0 up to (but not including) {@link _from}.
+ * If two arguments are provided, it generates a range from {@link _from} up to (but not including) {@link _to}.
+ * The optional {@link _step} argument specifies the increment (default is 1).
+ * If {@link _from} is greater than {@link _to}, the range is generated in reverse order.
  *
- * @param _from - The start of the range, or the end if `_to` is undefined.
- * @param _to - The end of the range (not included). If omitted, range starts from 0 and ends at `_from`.
+ * @param _from - The start of the range, or the end if {@link _to} is undefined.
+ * @param _to - The end of the range (not included). If omitted, range starts from 0 and ends at {@link _from}.
  * @param _step - The increment between numbers in the range. Must be greater than 0. Defaults to 1.
  * @returns An array of numbers representing the range.
- * @throws If `_step` is less than or equal to 0.
- * @throws If any argument is `NaN` or not finite.
+ * @throws If {@link _step} is less than or equal to 0.
+ * @throws If any argument is {@link NaN} or not finite.
  */
 export function range(_from: number, _to?: number, _step: number = 1): number[] {
   if (_to === undefined)
@@ -19,7 +19,7 @@ export function range(_from: number, _to?: number, _step: number = 1): number[] 
   if (!Number.isFinite(_from) || !Number.isFinite(_to) || !Number.isFinite(_step))
     throw new Error("Arguments must be finite numbers")
   if (_step <= 0)
-    throw new Error("_step must be greater than 0")
+    throw new Error("{_step must be greater than 0")
   if (_from < _to)
     return Array.from({length: Math.ceil((_to - _from) / _step)}, (_, i) => _from + i * _step)
   else if (_from > _to)
@@ -193,33 +193,6 @@ export class Benchmark {
 
 
 /**
- * Generates a random integer within a specified range, inclusive of both endpoints.
- *
- * @param _min - The minimum value of the range (inclusive). Defaults to `-0x80000000` to the lowest 32-bit signed integer.
- * @param _max - The maximum value of the range (inclusive). Defaults to `0x7fffffff` to the highest 32-bit signed integer.
- * @returns A random integer between {@link _min} and {@link _max}, inclusive.
- * @throws If {@link _min} or {@link _max} are not safe integers, or if the range is too large (greater than 2^32).
- */
-export function rand(_min: number = -0x80000000, _max: number = 0x7fffffff): number {
-  if (!Number.isSafeInteger(_min) || !Number.isSafeInteger(_max))
-    throw new Error("Arguments must be safe integers")
-  if (_min > _max) [_min, _max] = [_max, _min]
-  const span = _max - _min + 1
-  if (span > 0x100000000)
-    throw new Error("Range is too large; max supported span is 2^32")
-  const maxUnbiased = Math.floor(0x100000000 / span) * span
-  const arr = new Uint32Array(1)
-  let x: number
-  do {
-    globalThis.crypto.getRandomValues(arr)
-    x = arr[0]!
-  } while (x >= maxUnbiased)
-  return _min + (x % span)
-}
-
-
-
-/**
  * Helper type that represents a view of a Uint8Array, exposing only view methods and properties, along with a readonly index signature for accessing elements.
  */
 export type Uint8ArrayView = Pick<Uint8Array,
@@ -252,4 +225,36 @@ export type Uint8ArrayView = Pick<Uint8Array,
   | "length"
   | "byteLength"
   | "byteOffset"
-> & { readonly [n: number]: Enumerate<256> }
+> & { readonly [n: number]: number }
+
+
+
+/**
+ * The default character set used for generating random strings, consisting all safe characters for URLs and file names, excluding special characters.
+ */
+export const SAFE_ASCII = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" as const 
+/**
+ * Extension of {@link SAFE_ASCII} that includes additional special characters that can be printed but not safely used in URLs or file names, such as whitespace and certain punctuation marks.
+ */
+export const DEFAULT_ASCII = SAFE_ASCII + "-._~!@#$%^&*()[]{}|;:,.<>?/~`+=\\\"' "
+
+
+/**
+ * Generate a random combination of characters from a given character set.
+ *
+ * @param _length - The length of the random string to generate.
+ * @param _charset - A string containing the set of characters to choose from. Defaults to {@link DEFAULT_ASCII}.
+ * @returns A random string of the specified length composed of characters from the provided character set.
+ * @throws If `_length` is not a non-negative finite number.
+*/
+export function randStr(_length: number, _charset: string  = DEFAULT_ASCII): string {
+  if (!Number.isFinite(_length) || _length < 0)
+    throw new Error("Length must be a valid non-negative finite number")
+  const charsetLength = _charset.length
+  if (charsetLength === 0)
+    return ""
+  let result = ""
+  for (let i = 0; i < _length; i++)
+    result += _charset[Math.floor(Math.random() * charsetLength)]
+  return result
+}

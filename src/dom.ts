@@ -28,7 +28,6 @@ export function byId<T extends HTMLElement>(_id: string, _elementType?: new () =
 }
 
 
-
 /**
  * Retrieves all HTML elements with the specified class name and ensures they match the specified type.
  *
@@ -45,7 +44,6 @@ export function byClass<T extends HTMLElement>(_className: string, _elementType?
     return element as T
   })
 }
-
 
 
 /**
@@ -85,26 +83,10 @@ export const GLOBAL_STORE = window.__instrumentality__
  */
 export const COOKIE_PAIR_REGEX = /(?:^|; )([^=;]+)=([^;]*)/g
 /**
- * Maximum size of a cookie in bytes, as per the HTTP cookie specification.
- */
-export const MAX_COOKIE_SIZE = 4096 as const
-/**
  * Default path for cookies, used when no specific path is provided.
  */
 export const DEFAULT_PATH = '/' as const
 
-
-
-/**
- * Interface representing the data structure for a cookie, including its value and optional attributes.
- */
-export interface CookieData {
-  value: unknown
-  expires?: Date | number
-  domain?: string
-  secure?: boolean
-  sameSite?: 'Strict' | 'Lax' | 'None'
-}
 
 
 /**
@@ -114,7 +96,13 @@ export interface CookieData {
  * @param _data - The data to be stored in the cookie, including its value and optional attributes.
  * @param _path - An optional path for the cookie; defaults to {@link DEFAULT_PATH}.
  */
-export function setCookie(_name: string, _data: CookieData, _path: string = DEFAULT_PATH): void {
+export function setCookie(_name: string, _data: {
+  value: unknown
+  expires?: Date | number
+  domain?: string
+  secure?: boolean
+  sameSite?: 'Strict' | 'Lax' | 'None'
+}, _path: string = DEFAULT_PATH): void {
   let cookieString = `${encodeURIComponent(_name)}=${encodeURIComponent(JSON.stringify(_data.value))}; Path=${_path}`
   if (_data.expires)
     if (_data.expires instanceof Date) cookieString += `; Expires=${_data.expires.toUTCString()}`
@@ -123,20 +111,6 @@ export function setCookie(_name: string, _data: CookieData, _path: string = DEFA
   if (_data.secure) cookieString += `; Secure`
   if (_data.sameSite) cookieString += `; SameSite=${_data.sameSite}`
   document.cookie = cookieString
-}
-
-/**
- * Finds a cookie by its name and returns its value, or null if not found.
- *
- * @param _name - The name of the cookie to find.
- * @returns The value of the cookie if found, or null if not found.
- */
-export function findCookie(_name: string): unknown | null {
-  const matches = document.cookie.matchAll(COOKIE_PAIR_REGEX)
-  for (const match of matches)
-    if (decodeURIComponent(match[1] ?? "") === _name)
-      return JSON.parse(decodeURIComponent(match[2] ?? ""))
-  return null
 }
 
 /**
@@ -154,7 +128,7 @@ export function expireCookie(_name: string, _path: string = DEFAULT_PATH): void 
  *
  * @returns A record where each key is a cookie name and each value is the corresponding cookie value.
  */
-export function listCookies(): Record<string, unknown> {
+export function cookies(): Record<string, unknown> {
   const cookies: Record<string, unknown> = {}
   const matches = document.cookie.matchAll(COOKIE_PAIR_REGEX)
   for (const match of matches)

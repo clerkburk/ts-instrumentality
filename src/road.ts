@@ -4,6 +4,7 @@ import * as fp from "node:fs/promises"
 import * as ph from "node:path"
 import * as os from "node:os"
 import * as cr from "node:crypto"
+import * as sp from "node:stream/promises"
 import { on } from "node:events"
 
 
@@ -176,13 +177,13 @@ export abstract class Road {
       throw e
     }
   }
-  async untilAccessible(mode = fs.constants.F_OK, abortSignal: AbortSignal, onEachAttempt?: () => unknown) {
+  async untilAccessible(mode = fs.constants.F_OK, abs: AbortSignal, onEachAttempt?: () => unknown) {
     const watcher = fs.watch(this.isAt)
     try {
       if (await this.accessible(mode))
         return
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _ of on(watcher, 'change', { signal: abortSignal }))
+      for await (const _ of on(watcher, 'change', { signal: abs }))
         if (await this.accessible(mode))
           return
         else
@@ -194,7 +195,6 @@ export abstract class Road {
   async onChange<T>(abs: AbortSignal, cb?: () => T) {
     const watcher = fs.watch(this.isAt)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (let _ of on(watcher, 'change', { signal: abs }))
         return await cb?.() || null
       return null
@@ -349,12 +349,10 @@ export class File extends Road {
       hash.update(chunk)
     return encoding ? hash.digest(encoding) : hash.digest()
   }
-  streamHash(algorithm = "sha256", options?: cr.HashOptions) {
+  async streamHash(algorithm = "sha256", options?: cr.HashOptions, encoding?: cr.BinaryToTextEncoding): Promise<Buffer | string> {
     const hash = cr.createHash(algorithm, options)
-    const readStream = fs.createReadStream(this.isAt)
-    readStream.on('data', chunk => hash.update(chunk))
-    readStream.on('end', () => hash.digest())
-    return readStream
+    await sp.pipeline(fs.createReadStream(this.isAt), hash)
+    return encoding ? hash.digest(encoding) : hash.digest()
   }
 
   writeSync(data: Buffer | string, options?: fs.WriteFileOptions) {
@@ -617,10 +615,7 @@ export function sysRoot() { return new Folder(ph.parse(process.cwd()).root) }
 export function home() { return new Folder(os.homedir()) }
 export function tmp() { return new Folder(os.tmpdir()) }
 export function here() { return new Folder(process.cwd()) }
-export const Dir = Folder
-export const Directory = Folder
-export const Dict = Folder
-export const Dictionary = Folder
+export { Folder as Dir, Folder as Directory, Folder as Dict, Folder as Dictionary }
 
 
 
@@ -712,7 +707,7 @@ export class SymbolicLink extends Road {
     await fp.symlink(target.isAt, this.isAt)
   }
 }
-export const Symlink = SymbolicLink
+export { SymbolicLink as Symlink }
 
 
 
