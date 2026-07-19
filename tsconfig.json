@@ -10,12 +10,14 @@
 
     // Environment Settings
     "module": "nodenext",
-    "target": "ESNext",
+    "target": "esnext",
     "lib": ["esnext", "dom"],
     "types": ["node"],
     "isolatedModules": true,
     "moduleDetection": "auto",
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
 
     // Style Options
     "strict": true,

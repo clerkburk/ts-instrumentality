@@ -68,7 +68,7 @@ declare global {
     __instrumentality__: Record<string, unknown>
   }
 }
-window.__instrumentality__ = window.__instrumentality__ ?? {}
+window.__instrumentality__ = window.__instrumentality__ ?? Object.create(null)
 /**
  * This store is intended to be used as a shared state or configuration object
  * accessible throughout the application. The exact structure and type of the store

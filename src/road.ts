@@ -6,10 +6,26 @@ import * as os from "node:os"
 import * as cr from "node:crypto"
 import * as sp from "node:stream/promises"
 import { on } from "node:events"
+import * as bs from "./base.ts"
 
 
 
 
+/**
+ * Subclass of {@link bs.InsErr} that represents an error thrown from this specific module of the library
+ */
+export class RdErr extends bs.InsErr { override name = "Road-Error" }
+
+
+
+
+/**
+ * Returns the constructor function corresponding to the file mode.
+ * 
+ * @param statmode The file mode to check.
+ * @returns The constructor function corresponding to the file mode.
+ * @throws If the file mode is unknown, throws a {@link RdErr}.
+ */
 export function modeCtor(statmode: number) {
   switch (statmode & fs.constants.S_IFMT) {
     case fs.constants.S_IFREG: return File
@@ -19,15 +35,29 @@ export function modeCtor(statmode: number) {
     case fs.constants.S_IFLNK: return SymbolicLink
     case fs.constants.S_IFIFO: return Fifo
     case fs.constants.S_IFSOCK: return Socket
-    default: throw new Error(`Unknown mode type ${statmode}`)
+    default: throw new RdErr(`Unknown mode type ${statmode} (statmode is most likely corrupted)`)
   }
 }
 
 
+/**
+ * Creates a new instance of the appropriate subclass of {@link Road} based on the file mode of the specified path.
+ * 
+ * @param lookFor The path to check.
+ * @returns A new instance of the appropriate subclass of {@link Road}.
+ * @throws If the path does not exist, throws a fs {@link Error}.
+ */
 export async function factory(lookFor: string) {
   await fp.access(lookFor, fs.constants.F_OK)
   return new (modeCtor((await fp.lstat(lookFor)).mode))(lookFor)
 }
+/**
+ * Creates a new instance of the appropriate subclass of {@link Road} based on the file mode of the specified path.
+ *
+ * @param lookFor The path to check.
+ * @returns A new instance of the appropriate subclass of {@link Road}.
+ * @throws If the path does not exist, throws a fs {@link Error}.
+ */
 export function factorySync(lookFor: string) {
   fs.accessSync(lookFor, fs.constants.F_OK)
   return new (modeCtor(fs.lstatSync(lookFor).mode))(lookFor)
@@ -35,27 +65,55 @@ export function factorySync(lookFor: string) {
 
 
 
-export const lockedRoads = new Map<string, Promise<void>>()
+/**
+ * A map that keeps track of locked roads to prevent concurrent modifications. The keys are the absolute paths of the roads, and the values are promises that resolve when the lock is released.
+ * 
+ * @remarks Don't manually modify this map. Use the {@link Road.initChange} and {@link Road.initChangeSync} methods to acquire and release locks on roads.
+ * The reason why this is even exposed is to enable advanced use cases where you might want to check if a road is currently locked or to wait for a lock to be released before proceeding with an operation.
+ */
+export let lockedRoads: Map<string, Promise<void>> | null = null
 
 
 export abstract class Road {
+  /** The absolute path to the file or directory that this Road instance represents.
+   * Intentionally made protected to prevent external modification, as changing this value could lead to inconsistencies and unexpected behavior. */
   protected pointsTo: string
+  /** Indicates whether the file or directory represented by this Road instance can be modified.
+   * Changing this value does not affect the actual file system permissions, but rather serves as a safeguard within the application to prevent accidental modifications. */
   mutable: boolean = true
 
   // Quick conversion
+  /** Accessor for the absolute path to the file or directory that this Road instance represents. */
   get isAt() { return this.pointsTo }
+  /** Accessor for the name of the file or directory that this Road instance represents. */
   get name() { return ph.basename(this.isAt) }
+  /** Same as {@link isAt} but for compatibility with external libraries that try to convert the object to a string. */
   toString() { return this.isAt }
+  /** Returns the OS file type of the file or directory.
+   * Return value (OS type) and the type of this instance are not guaranteed to be the same, as the file system may have changed since this instance was created. */
   typeSync() { return (modeCtor(fs.lstatSync(this.isAt).mode)) }
+  /** Async version of {@link typeSync}. Returns the OS file type constructor of the file or directory. */
   async type() { return (modeCtor((await fp.lstat(this.isAt)).mode)) }
 
+  /** Constructs a new Road instance representing the file or directory at the specified path.
+   * 
+   * @param lookFor The path to the file or directory that this Road instance will represent.
+   * @throws If the specified path does not exist, throws a fs {@link Error}.
+   * @throws If the type of the file or directory at the specified path does not match the type of this instance, throws a {@link RdErr}. Useful for subclasses.
+   */
   constructor(lookFor: string) {
     fs.accessSync(lookFor, fs.constants.F_OK)
     this.pointsTo = ph.resolve(lookFor)
     if (!(this instanceof this.typeSync())) // this check is relevant for subclasses of Road
-      throw new Error(`Type missmatch: Path '${this.isAt}' is not of constructed type ${this.constructor.name}`)
+      throw new RdErr(`Type missmatch: Path '${this.isAt}' is not of constructed type ${this.constructor.name}.`)
   }
 
+  /**
+   * Verifies that the file or directory represented by this Road instance exists, is of the same type as this instance, and (optionally) is writable.
+   * 
+   * @param writeableCheck Whether to check if the file or directory is writable. Defaults to true.
+   * @returns Result of the verification.
+   */
   verifySync(writeableCheck: boolean = true) {
     if (!fs.existsSync(this.isAt))
       return false
@@ -82,44 +140,48 @@ export abstract class Road {
   }
   protected async initChange(releaseLock = () => {}) { // using RAII pattern to prevent changes if the file is modified externally during an operation, which would cause data loss or other issues. This is done by acquiring a lock before the operation and releasing it afterward. If the file is modified externally, the lock will prevent the operation from proceeding, and an error will be thrown.
     if (!await this.verify())
-      throw new Error(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? this.typeSync().name : 'nonexistent'})`)
+      throw new RdErr(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? this.typeSync().name : 'nonexistent'})`)
     if (!this.mutable)
-      throw new Error(`Attempting to modify road to '${this.isAt}' of type ${this.constructor.name} which's marked as immutable (unrelated to the actual OS file permissions)`)
+      throw new RdErr(`Attempting to modify road to '${this.isAt}' of type ${this.constructor.name} which's marked as immutable (unrelated to the actual OS file permissions)`)
+    if (!lockedRoads)
+      lockedRoads = new Map<string, Promise<void>>()
     const lockedPath = this.isAt
     await (lockedRoads.get(lockedPath) || Promise.resolve())
     lockedRoads.set(lockedPath, new Promise<void>(res => releaseLock = res))
     return {
       [Symbol.dispose]() {
         releaseLock()
-        releaseLock = () => { throw new Error("Lock already released, can't dispose") }
-        lockedRoads.delete(lockedPath)
+        releaseLock = () => { throw new RdErr("Lock already released, can't dispose") }
+        lockedRoads!.delete(lockedPath)
       },
       async [Symbol.asyncDispose]() {
         releaseLock()
-        releaseLock = () => { throw new Error("Lock already released, can't dispose") }
-        lockedRoads.delete(lockedPath)
+        releaseLock = () => { throw new RdErr("Lock already released, can't dispose") }
+        lockedRoads!.delete(lockedPath)
       }
     }
   }
   protected initChangeSync(releaseLock = () => {}) {
     if (!this.verifySync())
-      throw new Error(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? this.typeSync().name : 'nonexistent'})`)
+      throw new RdErr(`Road to '${this.isAt}' (${this.constructor.name}) isn't the same as during construction, can't modify (OS type: ${fs.existsSync(this.isAt) ? this.typeSync().name : 'nonexistent'})`)
     if (!this.mutable)
-      throw new Error(`Attempting to modify road to '${this.isAt}' of type ${this.constructor.name} which's marked as immutable (unrelated to the actual OS file permissions)`)
+      throw new RdErr(`Attempting to modify road to '${this.isAt}' of type ${this.constructor.name} which's marked as immutable (unrelated to the actual OS file permissions)`)
+    if (!lockedRoads)
+      lockedRoads = new Map<string, Promise<void>>()
     const lockedPath = this.isAt
     if (lockedRoads.has(lockedPath))
-      throw new Error(`Road to '${this.isAt}' is currently locked by another operation, can't modify synchronously`)
+      throw new RdErr(`Road to '${this.isAt}' is currently locked by another operation, can't modify synchronously`)
     lockedRoads.set(lockedPath, new Promise<void>(res => releaseLock = res))
     return {
       [Symbol.dispose]() {
         releaseLock()
-        releaseLock = () => { throw new Error("Lock already released, can't dispose") }
-        lockedRoads.delete(lockedPath)
+        releaseLock = () => { throw new RdErr("Lock already released, can't dispose") }
+        lockedRoads!.delete(lockedPath)
       },
       async [Symbol.asyncDispose]() {
         releaseLock()
-        releaseLock = () => { throw new Error("Lock already released, can't dispose") }
-        lockedRoads.delete(lockedPath)
+        releaseLock = () => { throw new RdErr("Lock already released, can't dispose") }
+        lockedRoads!.delete(lockedPath)
       }
     }
   }
@@ -203,41 +265,41 @@ export abstract class Road {
     finally { watcher.close() }
   }
 
-  metaSync(suffixID = "tsInstrumentalityMeta"): Record<string, unknown> {
+  metaSync(suffixID = "tsInstrumentalityMeta") {
     if (!this.verifySync())
-      throw new Error(`Road not verified, can't get metadata for '${this.isAt}'`)
+      throw new RdErr(`Road not verified, can't get metadata for '${this.isAt}'`)
     if (os.platform() === "win32")
-      return JSON.parse(fs.readFileSync(`${this.isAt}:${suffixID}`, 'utf-8'))
+      return fs.readFileSync(`${this.isAt}:${suffixID}`)
     else
-      throw new Error("Extended attributes are not supported on this platform")
+      throw new RdErr("Extended attributes are not supported on this platform")
   }
   async meta(suffixID = "tsInstrumentalityMeta"): Promise<Record<string, unknown>> {
     if (!await this.verify())
-      throw new Error(`Road not verified, can't get metadata for '${this.isAt}'`)
+      throw new RdErr(`Road not verified, can't get metadata for '${this.isAt}'`)
     if (os.platform() === "win32")
       return JSON.parse(await fp.readFile(`${this.isAt}:${suffixID}`, 'utf-8'))
     else
-      throw new Error("Extended attributes are not supported on this platform")
+      throw new RdErr("Extended attributes are not supported on this platform")
   }
   setMetaSync(meta: Record<string, unknown>, suffixID = "tsInstrumentalityMeta") {
     using _ = this.initChangeSync()
     if (!this.verifySync())
-      throw new Error(`Road not verified, can't set metadata for '${this.isAt}'`)
+      throw new RdErr(`Road not verified, can't set metadata for '${this.isAt}'`)
     const metaString = JSON.stringify(meta)
     if (os.platform() === "win32")
       fs.writeFileSync(`${this.isAt}:${suffixID}`, metaString, 'utf-8')
     else
-      throw new Error("Extended attributes are not supported on this platform")
+      throw new RdErr("Extended attributes are not supported on this platform")
   }
   async setMeta(meta: Record<string, unknown>, suffixID = "tsInstrumentalityMeta") {
     using _ = await this.initChange()
     if (!await this.verify())
-      throw new Error(`Road not verified, can't set metadata for '${this.isAt}'`)
+      throw new RdErr(`Road not verified, can't set metadata for '${this.isAt}'`)
     const metaString = JSON.stringify(meta)
     if (os.platform() === "win32")
       await fp.writeFile(`${this.isAt}:${suffixID}`, metaString, 'utf-8')
     else
-      throw new Error("Extended attributes are not supported on this platform")
+      throw new RdErr("Extended attributes are not supported on this platform")
   }
 
   abstract deleteSync(): void
@@ -717,7 +779,7 @@ export abstract class UnusableRoad extends Road {
     super(_at)
     Object.freeze(this)
   }
-  error(): never { throw new Error(`${this.constructor.name} at '${this.isAt}' is a system-level resource thus intentionally made immutable.`) }
+  error(): never { throw new RdErr(`${this.constructor.name} at '${this.isAt}' is a system-level resource thus intentionally made immutable.`) }
   override initChangeSync(): never { return this.error() }
   override async initChange(): Promise<never> { return this.error() }
   override deleteSync(): never { return this.error() }
@@ -738,83 +800,82 @@ export class Socket extends UnusableRoad { }
 
 
 
-export class IdentifiableFile extends File {
-  protected identifier: Buffer
-  constructor(_at: string) {
-    super(_at)
-    this.identifier = this.computeHashSync()
-  }
-  getHash() { return Buffer.from(this.identifier) }
-  rehashSync() { this.identifier = this.computeHashSync() }
-  async rehash() { this.identifier = await this.computeHash() }
-  override verifySync(writeableCheck: boolean = true) {
-    return super.verifySync(writeableCheck) && this.identifier.equals(this.computeHashSync())
-  }
-  override async verify(writeableCheck: boolean = true) {
-    return await super.verify(writeableCheck) && this.identifier.equals(await this.computeHash())
-  }
-  override writeSync(data: Buffer | string, options?: fs.WriteFileOptions) {
-    super.writeSync(data, options)
-    this.rehashSync()
-  }
-  override async write(data: Buffer | string, options?: fs.WriteFileOptions) {
-    await super.write(data, options)
-    await this.rehash()
-  }
-  override appendSync(data: Buffer | string, options?: fs.WriteFileOptions) {
-    super.appendSync(data, options)
-    this.rehashSync()
-  }
-  override async append(data: Buffer | string, options?: fs.WriteFileOptions) {
-    await super.append(data, options)
-    await this.rehash()
-  }
-  override deleteSync() {
-    super.deleteSync()
-    this.identifier = Buffer.alloc(0)
-  }
-  override async delete() {
-    await super.delete()
-    this.identifier = Buffer.alloc(0)
-  }
-  override ressurectSync() {
-    super.ressurectSync()
-    this.rehashSync()
-  }
-  override async ressurect() {
-    await super.ressurect()
-    await this.rehash()
+export let finalizer: FinalizationRegistry<string> | null = null
+export let toDelete: Set<string> | null = null
+type ExitHookDisposer = () => void
+let exitHooksDisposer: ExitHookDisposer | null = null
+function installExitCleanupHooksIfNeeded() {
+  if (exitHooksDisposer) return
+
+  const onExit = () => forceCleanupToDeleteOnExit()
+  const onSigInt = () => { forceCleanupToDeleteOnExit(); process.exit(130) }
+  const onSigTerm = () => { forceCleanupToDeleteOnExit(); process.exit(143) }
+  const onUnhandledRejection = () => forceCleanupToDeleteOnExit()
+  const onUncaughtException = () => forceCleanupToDeleteOnExit()
+
+  // const onExit: Parameters<typeof process.once<"exit">>[1] = code => { forceCleanupToDeleteOnExit(); process.off("exit", onExit); process.exit(code) }
+  // const onSigInt: Parameters<typeof process.once<"SIGINT">>[1] = sig => { forceCleanupToDeleteOnExit(); process.off("SIGINT", onSigInt); process.emit(sig) }
+  // const onSigTerm: Parameters<typeof process.once<"SIGTERM">>[1] = sig => { forceCleanupToDeleteOnExit(); process.off("SIGTERM", onSigTerm); process.emit(sig) }
+  // const onUnhandledRejection: Parameters<typeof process.once<"unhandledRejection">>[1] = (reason, prom) => { forceCleanupToDeleteOnExit(); process.off("unhandledRejection", onUnhandledRejection); process.emit("unhandledRejection", reason, prom) }
+  // const onUncaughtException: Parameters<typeof process.once<"uncaughtException">>[1] = (err, origin) => { forceCleanupToDeleteOnExit(); process.off("uncaughtException", onUncaughtException) }
+
+  process.once("exit", onExit)
+  process.once("SIGINT", onSigInt)
+  process.once("SIGTERM", onSigTerm)
+  process.once("unhandledRejection", onUnhandledRejection)
+  process.once("uncaughtException", onUncaughtException)
+
+  exitHooksDisposer = () => {
+    process.off("exit", onExit)
+    process.off("SIGINT", onSigInt)
+    process.off("SIGTERM", onSigTerm)
+    process.off("unhandledRejection", onUnhandledRejection)
+    process.off("uncaughtException", onUncaughtException)
+    exitHooksDisposer = null
   }
 }
-
-
-
-export const roadFinalizer = new FinalizationRegistry<string>(p => fs.rmSync(p, { force: true, recursive: true }))
+/**
+ * Forcefully cleans up all files and folders registered for cleanup on exit.
+ * 
+ * @remarks This function is not recommended to be called manually, as it will delete all files and folders registered for cleanup on exit, which may lead to data loss if called at the wrong time. This function is intended to be called automatically when the process exits.
+ */
+export function forceCleanupToDeleteOnExit() {
+  exitHooksDisposer?.()
+  for (const path of toDelete ?? [])
+    try { fs.rmSync(path, { force: true, recursive: true }) } catch {}
+  toDelete?.clear()
+  toDelete = null
+  finalizer = null
+}
+export function registerToCleanup(self: Road) {
+  if (!finalizer)
+    finalizer = new FinalizationRegistry<string>(p => { try { fs.rmSync(p, { force: true, recursive: true }) } catch {}; toDelete?.delete(p) })
+  if (!toDelete)
+    toDelete = new Set()
+  toDelete.add(self.isAt)
+  finalizer.register(self, self.isAt, self)
+  installExitCleanupHooksIfNeeded()
+}
 
 
 export class TempFile extends File implements AsyncDisposable, Disposable {
-  constructor(exitOnSignal = ['exit', 'SIGINT', 'SIGTERM'], etx = '.tmp') {
-    super(tmp().addSync(`instrumentality_${cr.randomUUID()}${etx}`, File).isAt)
-    roadFinalizer.register(this, this.isAt)
-    const isAt = this.isAt
-    exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(isAt, { force: true })))
+  constructor(autoCleanup: boolean) {
+    super(tmp().addSync(`instrumentality@${cr.randomUUID()}`, File).isAt)
+    if (autoCleanup)
+      registerToCleanup(this)
     Object.freeze(this)
   }
-
-  [Symbol.dispose]() { this.deleteSync() }
-  async [Symbol.asyncDispose]() { await this.delete() }
+  [Symbol.dispose]() { this.deleteSync(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
+  async [Symbol.asyncDispose]() { await this.delete(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
 }
 
-
 export class TempFolder extends Folder implements AsyncDisposable, Disposable {
-  constructor(exitOnSignal = ['exit', 'SIGINT', 'SIGTERM']) {
-    super(tmp().addSync(`instrumentality_${cr.randomUUID()}`, Folder).isAt)
-    roadFinalizer.register(this, this.isAt)
-    const isAt = this.isAt
-    exitOnSignal.forEach(e => process.on(e, () => fs.rmSync(isAt, { force: true, recursive: true })))
+  constructor(autoCleanup: boolean) {
+    super(tmp().addSync(`instrumentality@${cr.randomUUID()}`, Folder).isAt)
+    if (autoCleanup)
+      registerToCleanup(this)
     Object.freeze(this)
   }
-
-  [Symbol.dispose]() { this.deleteSync() }
-  async [Symbol.asyncDispose]() { await this.delete() }
+  [Symbol.dispose]() { this.deleteSync(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
+  async [Symbol.asyncDispose]() { await this.delete(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
 }

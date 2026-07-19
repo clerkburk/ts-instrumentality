@@ -1,56 +1,4 @@
 /**
- * Generates an array of numbers within a specified range.
- *
- * If only one argument is provided, it generates a range from 0 up to (but not including) {@link _from}.
- * If two arguments are provided, it generates a range from {@link _from} up to (but not including) {@link _to}.
- * The optional {@link _step} argument specifies the increment (default is 1).
- * If {@link _from} is greater than {@link _to}, the range is generated in reverse order.
- *
- * @param _from - The start of the range, or the end if {@link _to} is undefined.
- * @param _to - The end of the range (not included). If omitted, range starts from 0 and ends at {@link _from}.
- * @param _step - The increment between numbers in the range. Must be greater than 0. Defaults to 1.
- * @returns An array of numbers representing the range.
- * @throws If {@link _step} is less than or equal to 0.
- * @throws If any argument is {@link NaN} or not finite.
- */
-export function range(_from: number, _to?: number, _step: number = 1): number[] {
-  if (_to === undefined)
-    [_from, _to] = [0, _from] // If only one way
-  if (!Number.isFinite(_from) || !Number.isFinite(_to) || !Number.isFinite(_step))
-    throw new Error("Arguments must be finite numbers")
-  if (_step <= 0)
-    throw new Error("{_step must be greater than 0")
-  if (_from < _to)
-    return Array.from({length: Math.ceil((_to - _from) / _step)}, (_, i) => _from + i * _step)
-  else if (_from > _to)
-    return Array.from({length: Math.ceil((_from - _to) / _step)}, (_, i) => _from - i * _step)
-  return []
-}
-
-
-
-/**
- * ANSI escape codes for text formatting in the terminal.
- */
-export const enum ANSI_ESC {
-  BOLD = "\u001b[1m",
-  ITALIC = "\u001b[3m",
-  UNDERLINE = "\u001b[4m",
-  STRIKETHROUGH = "\u001b[9m",
-  RESET = "\u001b[0m",
-  BLACK = "\u001b[30m",
-  RED = "\u001b[31m",
-  GREEN = "\u001b[32m",
-  YELLOW = "\u001b[33m",
-  BLUE = "\u001b[34m",
-  MAGENTA = "\u001b[35m",
-  CYAN = "\u001b[36m",
-  WHITE = "\u001b[37m"
-}
-
-
-
-/**
  * Retries a function multiple times with optional error handling and abort signal.
  *
  * @param _fn - The function to be retried.
@@ -70,9 +18,9 @@ export async function retry<T>(_fn: () => T, _maxAttempts: number, _cbErr?: () =
       await _cbErr?.()
     }
   if (_maxAttempts < 0)
-    throw new Error("Max attempts exceeded")
+    throw new InsErr("Max attempts exceeded")
   else
-    throw new Error("Operation aborted")
+    throw new InsErr("Operation aborted")
 }
 
 
@@ -86,7 +34,7 @@ export async function retry<T>(_fn: () => T, _maxAttempts: number, _cbErr?: () =
  */
 export async function sleep(_ms: number, _abs?: AbortSignal): Promise<void> {
   if (_abs?.aborted)
-    return Promise.reject(new Error("Sleep aborted before start"))
+    return Promise.reject(new InsErr("Sleep aborted before start"))
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       _abs?.removeEventListener("abort", onAbort)
@@ -96,7 +44,7 @@ export async function sleep(_ms: number, _abs?: AbortSignal): Promise<void> {
     function onAbort() {
       clearTimeout(timeout)
       _abs?.removeEventListener("abort", onAbort)
-      reject(new Error("Sleep aborted during wait"))
+      reject(new InsErr("Sleep aborted during wait"))
     }
     _abs?.addEventListener("abort", onAbort, { once: true })
   })
@@ -249,7 +197,7 @@ export const DEFAULT_ASCII = SAFE_ASCII + "-._~!@#$%^&*()[]{}|;:,.<>?/~`+=\\\"' 
 */
 export function randStr(_length: number, _charset: string  = DEFAULT_ASCII): string {
   if (!Number.isFinite(_length) || _length < 0)
-    throw new Error("Length must be a valid non-negative finite number")
+    throw new InsErr("Length must be a valid non-negative finite number")
   const charsetLength = _charset.length
   if (charsetLength === 0)
     return ""
@@ -258,3 +206,10 @@ export function randStr(_length: number, _charset: string  = DEFAULT_ASCII): str
     result += _charset[Math.floor(Math.random() * charsetLength)]
   return result
 }
+
+
+
+/**
+ * Subclass of {@link Error} that represents an error thrown from this library, providing a specific name for easier identification.
+ */
+export class InsErr extends Error { override name = "TS-Instrumentality-Error" }
