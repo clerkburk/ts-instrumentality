@@ -69,9 +69,19 @@ export function factorySync(lookFor: string) {
  * A map that keeps track of locked roads to prevent concurrent modifications. The keys are the absolute paths of the roads, and the values are promises that resolve when the lock is released.
  * 
  * @remarks Don't manually modify this map. Use the {@link Road.initChange} and {@link Road.initChangeSync} methods to acquire and release locks on roads.
- * The reason why this is even exposed is to enable advanced use cases where you might want to check if a road is currently locked or to wait for a lock to be released before proceeding with an operation.
+ * The reason why this is even exposed is to enable advanced use cases. For read-only purposes, you can use the {@link lockFor} function to check if a road is currently locked.
  */
-export let lockedRoads: Map<string, Promise<void>> | null = null
+export let lockedRoads: Map<string, Promise<void>> | undefined = undefined
+/**
+ * Getter for the locked roads map.
+ * 
+ * @param roadOrPath - A {@link Road} instance or a string representing the absolute path of the road to check.
+ * @returns The promise associated with the locked road, or `undefined` if the road is not currently locked.
+ */
+export function lockFor(roadOrPath: Road | string) {
+  return lockedRoads?.get(typeof roadOrPath === "string" ? roadOrPath : roadOrPath.isAt)
+}
+
 
 
 export abstract class Road {
@@ -800,82 +810,45 @@ export class Socket extends UnusableRoad { }
 
 
 
-export let finalizer: FinalizationRegistry<string> | null = null
-export let toDelete: Set<string> | null = null
-type ExitHookDisposer = () => void
-let exitHooksDisposer: ExitHookDisposer | null = null
-function installExitCleanupHooksIfNeeded() {
-  if (exitHooksDisposer) return
-
-  const onExit = () => forceCleanupToDeleteOnExit()
-  const onSigInt = () => { forceCleanupToDeleteOnExit(); process.exit(130) }
-  const onSigTerm = () => { forceCleanupToDeleteOnExit(); process.exit(143) }
-  const onUnhandledRejection = () => forceCleanupToDeleteOnExit()
-  const onUncaughtException = () => forceCleanupToDeleteOnExit()
-
-  // const onExit: Parameters<typeof process.once<"exit">>[1] = code => { forceCleanupToDeleteOnExit(); process.off("exit", onExit); process.exit(code) }
-  // const onSigInt: Parameters<typeof process.once<"SIGINT">>[1] = sig => { forceCleanupToDeleteOnExit(); process.off("SIGINT", onSigInt); process.emit(sig) }
-  // const onSigTerm: Parameters<typeof process.once<"SIGTERM">>[1] = sig => { forceCleanupToDeleteOnExit(); process.off("SIGTERM", onSigTerm); process.emit(sig) }
-  // const onUnhandledRejection: Parameters<typeof process.once<"unhandledRejection">>[1] = (reason, prom) => { forceCleanupToDeleteOnExit(); process.off("unhandledRejection", onUnhandledRejection); process.emit("unhandledRejection", reason, prom) }
-  // const onUncaughtException: Parameters<typeof process.once<"uncaughtException">>[1] = (err, origin) => { forceCleanupToDeleteOnExit(); process.off("uncaughtException", onUncaughtException) }
-
-  process.once("exit", onExit)
-  process.once("SIGINT", onSigInt)
-  process.once("SIGTERM", onSigTerm)
-  process.once("unhandledRejection", onUnhandledRejection)
-  process.once("uncaughtException", onUncaughtException)
-
-  exitHooksDisposer = () => {
-    process.off("exit", onExit)
-    process.off("SIGINT", onSigInt)
-    process.off("SIGTERM", onSigTerm)
-    process.off("unhandledRejection", onUnhandledRejection)
-    process.off("uncaughtException", onUncaughtException)
-    exitHooksDisposer = null
-  }
-}
+export let finalizer: FinalizationRegistry<string> | undefined = undefined
+export let toDelete: Set<string> | undefined = undefined
+let exitHandlerRegistered = false
 /**
  * Forcefully cleans up all files and folders registered for cleanup on exit.
  * 
  * @remarks This function is not recommended to be called manually, as it will delete all files and folders registered for cleanup on exit, which may lead to data loss if called at the wrong time. This function is intended to be called automatically when the process exits.
  */
-export function forceCleanupToDeleteOnExit() {
-  exitHooksDisposer?.()
+export function forceCleanupToDelete() {
   for (const path of toDelete ?? [])
     try { fs.rmSync(path, { force: true, recursive: true }) } catch {}
   toDelete?.clear()
-  toDelete = null
-  finalizer = null
+  toDelete = undefined
+  finalizer = undefined
+  if (exitHandlerRegistered) {
+    process.off('exit', forceCleanupToDelete)
+    exitHandlerRegistered = false
+  }
 }
 export function registerToCleanup(self: Road) {
   if (!finalizer)
     finalizer = new FinalizationRegistry<string>(p => { try { fs.rmSync(p, { force: true, recursive: true }) } catch {}; toDelete?.delete(p) })
   if (!toDelete)
     toDelete = new Set()
+  if (!exitHandlerRegistered) {
+    process.once('exit', forceCleanupToDelete)
+    exitHandlerRegistered = true
+  }
   toDelete.add(self.isAt)
   finalizer.register(self, self.isAt, self)
-  installExitCleanupHooksIfNeeded()
 }
 
 
-export class TempFile extends File implements AsyncDisposable, Disposable {
-  constructor(autoCleanup: boolean) {
-    super(tmp().addSync(`instrumentality@${cr.randomUUID()}`, File).isAt)
-    if (autoCleanup)
-      registerToCleanup(this)
-    Object.freeze(this)
-  }
-  [Symbol.dispose]() { this.deleteSync(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
-  async [Symbol.asyncDispose]() { await this.delete(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
-}
-
-export class TempFolder extends Folder implements AsyncDisposable, Disposable {
-  constructor(autoCleanup: boolean) {
-    super(tmp().addSync(`instrumentality@${cr.randomUUID()}`, Folder).isAt)
-    if (autoCleanup)
-      registerToCleanup(this)
-    Object.freeze(this)
-  }
-  [Symbol.dispose]() { this.deleteSync(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
-  async [Symbol.asyncDispose]() { await this.delete(); toDelete?.delete(this.isAt); finalizer?.unregister(this) }
+export function Temp<T extends Road>(createable: { createSync: (at: string) => T }, autoCleanup: boolean = true): T & Disposable & AsyncDisposable {
+  const t = createable.createSync(tmp().join(`instrumentality@${cr.randomUUID()}`))
+  if (autoCleanup)
+    registerToCleanup(t)
+  return Object.freeze(Object.assign(t, {
+    [Symbol.dispose]() { try { t.deleteSync() } catch {} toDelete?.delete(t.isAt); finalizer?.unregister(t) },
+    async [Symbol.asyncDispose]() { try { await t.delete() } catch {} toDelete?.delete(t.isAt); finalizer?.unregister(t) }
+  }))
 }

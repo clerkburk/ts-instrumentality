@@ -184,7 +184,7 @@ export const SAFE_ASCII = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0
 /**
  * Extension of {@link SAFE_ASCII} that includes additional special characters that can be printed but not safely used in URLs or file names, such as whitespace and certain punctuation marks.
  */
-export const DEFAULT_ASCII = SAFE_ASCII + "-._~!@#$%^&*()[]{}|;:,.<>?/~`+=\\\"' "
+export const DEFAULT_ASCII = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~!@#$%^&*()[]{}|;:,.<>?/~`+=\\\"' " as const
 
 
 /**

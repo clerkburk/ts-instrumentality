@@ -57,27 +57,6 @@ export function byTag<K extends keyof HTMLElementTagNameMap>(_tagName: K): HTMLE
 
 
 
-declare global {
-  interface Window {
-    /**
-     * Extends the global {@link Window} interface to include the {@link __instrumentality__} property.
-     * 
-     * @property {@link __instrumentality__} - A record for storing arbitrary key-value pairs,
-     * typically used for attaching metadata to the window object (named after this library).
-     */
-    __instrumentality__: Record<string, unknown>
-  }
-}
-window.__instrumentality__ = window.__instrumentality__ ?? Object.create(null)
-/**
- * This store is intended to be used as a shared state or configuration object
- * accessible throughout the application. The exact structure and type of the store
- * depends on how {@link window.__instrumentality__} is defined elsewhere in the codebase.
- */
-export const GLOBAL_STORE = window.__instrumentality__
-
-
-
 /**
  * Regular expression to match cookie name-value pairs in a cookie string.
  */
