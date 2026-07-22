@@ -71,7 +71,7 @@ export function factorySync(lookFor: string) {
  * @remarks Don't manually modify this map. Use the {@link Road.initChange} and {@link Road.initChangeSync} methods to acquire and release locks on roads.
  * The reason why this is even exposed is to enable advanced use cases. For read-only purposes, you can use the {@link lockFor} function to check if a road is currently locked.
  */
-export let lockedRoads: Map<string, Promise<void>> | undefined = undefined
+export let lockedRoads: Map<string, Promise<void>> | null = null
 /**
  * Getter for the locked roads map.
  * 
@@ -810,8 +810,8 @@ export class Socket extends UnusableRoad { }
 
 
 
-export let finalizer: FinalizationRegistry<string> | undefined = undefined
-export let toDelete: Set<string> | undefined = undefined
+export let finalizer: FinalizationRegistry<string> | null = null
+export let toDelete: Set<string> | null = null
 let exitHandlerRegistered = false
 /**
  * Forcefully cleans up all files and folders registered for cleanup on exit.
@@ -822,8 +822,8 @@ export function forceCleanupToDelete() {
   for (const path of toDelete ?? [])
     try { fs.rmSync(path, { force: true, recursive: true }) } catch {}
   toDelete?.clear()
-  toDelete = undefined
-  finalizer = undefined
+  toDelete = null
+  finalizer = null
   if (exitHandlerRegistered) {
     process.off('exit', forceCleanupToDelete)
     exitHandlerRegistered = false
